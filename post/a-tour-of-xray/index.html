@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" >
+
+<title>推开 xray 之门 | Koalrの沉思录</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.12.0/css/all.min.css">
+<link rel="shortcut icon" href="https://koalr.me//favicon.ico?v=1610803394914">
+<link rel="stylesheet" href="https://koalr.me//styles/main.css">
+
+
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" />
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+
+
+    <meta name="description" content="我非常荣幸的参加了今年的阿里白帽大会，会上分享了一个议题 《漏洞挖掘进化论 - 推开 xray 之门》，这里做一个简单的记录和解读。 下载地址
+
+议题的主要目的是帮助大家认识一下 xray，分享 xray 在实现漏洞自动化检测时用到的前沿漏..." />
+    <meta name="keywords" content="" />
+  </head>
+  <body>
+    <div id="app" class="main">
+
+      <div class="sidebar" :class="{ 'full-height': menuVisible }">
+  <div class="top-container" data-aos="fade-right">
+    <div class="top-header-container">
+      <a class="site-title-container" href="https://koalr.me/">
+        <img src="https://koalr.me//images/avatar.png?v=1610803394914" class="site-logo">
+        <h1 class="site-title">Koalrの沉思录</h1>
+      </a>
+      <div class="menu-btn" @click="menuVisible = !menuVisible">
+        <div class="line"></div>
+      </div>
+    </div>
+    <div>
+      
+        
+          <a href="/" class="site-nav">
+            首页
+          </a>
+        
+      
+        
+          <a href="/archives" class="site-nav">
+            归档
+          </a>
+        
+      
+        
+          <a href="/tags" class="site-nav">
+            标签
+          </a>
+        
+      
+        
+          <a href="/post/about" class="site-nav">
+            关于
+          </a>
+        
+      
+    </div>
+  </div>
+  <div class="bottom-container" data-aos="flip-up" data-aos-offset="0">
+    <div class="social-container">
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    </div>
+    <div class="site-description">
+      一个做安全开发的佛系少年的自留地
+    </div>
+    <div class="site-footer">
+      长路尽处自有明灯 | <a class="rss" href="https://koalr.me//atom.xml" target="_blank">RSS</a>
+    </div>
+  </div>
+</div>
+
+
+      <div class="main-container">
+        <div class="content-container" data-aos="fade-up">
+          <div class="post-detail">
+            <h2 class="post-title">推开 xray 之门</h2>
+            <div class="post-date">2020-01-12</div>
+            
+            <div class="post-content" v-pre>
+              <p>我非常荣幸的参加了今年的阿里白帽大会，会上分享了一个议题 <strong>《漏洞挖掘进化论 - 推开 xray 之门》</strong>，这里做一个简单的记录和解读。 <a href="/files/%E6%BC%8F%E6%B4%9E%E6%8C%96%E6%8E%98%E8%BF%9B%E5%8C%96%E8%AE%BA-%E6%8E%A8%E5%BC%80xray%E4%B9%8B%E9%97%A8.pdf">下载地址</a></p>
+<!-- more -->
+<p>议题的主要目的是帮助大家认识一下 xray，分享 xray 在实现漏洞自动化检测时用到的前沿漏洞检测技术，显示 xray 相比其他社区项目的优势。为了实现这样的目的，我挑选了 xray 中的两个插件，循序渐进的带大家认识了插件背后的运行机理，一个是 JSONP，一个是 POC 框架。由于这里面对的是大批优秀的白帽子，他们擅长漏洞挖掘的同时开发能力相对弱一些，因此议题中我主要侧重于对自动化检测思路的介绍而非实际的代码实现。</p>
+<h2 id="jsonp-的检测">JSONP 的检测</h2>
+<p>说起来也巧，这次的 6 个议题中有 3 个多多少少讲到了 jsonp 这个问题，当然这三个议题的切入点是完全不同的，我这个当然就是讲自动化挖掘了。在讲这个 “漏洞” 之前，我们需要明确一个概念—— jsonp 本身不是漏洞，它仅仅是一种兼容性非常棒的跨域通信方式，那么是么时候会被认为是漏洞呢？当 jsonp 的返回数据为用户敏感数据，并且这个 jsonp 的检验不严格导致可以被外部利用，这时候就可以称之为 <strong>jsonp 敏感信息泄露漏洞</strong>。</p>
+<p>我们先回顾一下 jsonp 漏洞的手工挖掘方式:</p>
+<figure data-type="image" tabindex="1"><img src="https://koalr.me//post-images/1578837474032.jpg" alt="" loading="lazy"></figure>
+<p>相对应的，在做自动化检测时拿到一个请求后应该考虑如下几个问题:</p>
+<ol>
+<li>寻找 JS 类型的资源</li>
+<li>判断是否是 JSONP</li>
+<li>判断是否包含敏感信息</li>
+<li>判断能否绕过 Referer</li>
+</ol>
+<p>第一点我们通过判断 Content-Type 就可以做到；第二点只需要判断 url 的 query 是否包含 <code>callback</code>、<code>cb</code> 等字样就可以，可以通过收集一部分关键字然后通过正则实现；第三点，我们借势“举一反三”继续使用正则判断，这也为后面的优化埋下伏笔；第四点通过替换 <code>Referer</code>，看下替换后是否依然有敏感信息即可。</p>
+<figure data-type="image" tabindex="2"><img src="https://koalr.me//post-images/1578838323278.png" alt="" loading="lazy"></figure>
+<p>由于第三步处理逻辑的粗糙，这种的方式很容易导致漏报和误报，但如果通过正则优化来解决，会遇到很多棘手的问题，我这里随便举了几个栗子，并由此引出结论：<strong>正则不是解决这个问题的最优解</strong>。</p>
+<figure data-type="image" tabindex="3"><img src="https://koalr.me//post-images/1578838637982.jpg" alt="" loading="lazy"></figure>
+<p>那么什么是这个问题的最优解，我们重新思考一下这个漏洞原理，不难发现它有如下特点：</p>
+<ul>
+<li>所有的 JSONP 都是 Javascript 代码</li>
+<li>这段代码语义完整可以执行</li>
+<li>这段代码长度简短逻辑简单（性能上的考量）</li>
+</ul>
+<p>在这种情况下，有一种稍微高阶一点的检测方式：<strong>语义分析</strong></p>
+<figure data-type="image" tabindex="4"><img src="https://koalr.me//post-images/1578839122540.png" alt="" loading="lazy"></figure>
+<p>在 AST 层面的统一和一致，给我们的分析过程带来了极大的遍历，使我们可以很轻易的解决下面几种 case</p>
+<pre><code class="language-js">callback({&quot;username&quot;:&quot;xray&quot;});
+callback({&quot;data&quot;: {username:&quot;xray&quot;}});
+/*aa*/ window.cb &amp;&amp; window.cb({&quot;username&quot;:&quot;xray&quot;})
+callback([{&quot;info&quot;: {&quot;username&quot;: &quot;array&quot;}}])
+cb('  {&quot;username&quot;:&quot;xray&quot;}  ')
+a={&quot;username&quot;: &quot;xray&quot;}; cb({&quot;s&quot;: a})
+</code></pre>
+<p>至此 jsonp 的检测可以说找到了一种相对完美的解决方案，误报的数量处于完全可接受的状态，漏报一般丰富一下敏感信息关键字就可以解决，jsonp 的介绍到此为止。</p>
+<h2 id="poc-框架">POC 框架</h2>
+<p>web 漏洞不只有通用漏洞，还有一大波 cms、框架的漏洞，这些漏洞的检测没办法做统一的处理，所以一个 POC 框架是必不可少的。但是对于 xray 这个不开源且用静态语言编写的扫描器而言，事情没有那么简单，我们需要一个“静态可拓展”的 POC 框架。回忆一下常见的静态语言动态化方式，大致有以下几种:</p>
+<ul>
+<li>开放接口  (interface/.so)</li>
+<li>开放部分源码 (Go plugin)</li>
+<li>内置其他语言解释器 (lua, js)</li>
+<li>表达式技术 (sPEL, OGNL)</li>
+</ul>
+<p>第一种大家比较常见的是 burpsuite 的插件系统，burp 对外开放了一个 interface 文件，编写时根据接口去调用其中的方法即可；第二种是 Go 语言中的一种特殊的用法，可以理解为 Go 自带的插件系统，其实和 <code>.so</code> 非常像；第三种最常见是 OpenResty 内嵌的 lua 解释器，使得我们可以非常方便的为 nginx 拓展功能；最后一种在 Java 系中应用广泛，比如 structs 历来的高危漏洞大都和 OGNL 表达式有关。</p>
+<p>这四种技术中，前3种都是需要写代码的，在我的认知下，安全能力强的人往往开发弱一些，而 xray 希望能快速形成社区，让更多的人参与进来，所以前三种方案都不合适。最终我们实现了一个基于 YAML 的 POC 框架。</p>
+<figure data-type="image" tabindex="5"><img src="https://koalr.me//post-images/1578878585848.jpg" alt="" loading="lazy"></figure>
+<p>这里实现上的关键就是表达式技术，我们站在巨人肩膀上，基于 CEL (Common Language Expression) 实现了大量新的函数，同时注入了几个必要的数据类型，使得表达式用起来自然简单而高效。比如上面的 <code>response.body.bcontains(b&quot;Example Domain&quot;)</code>，我们甚至可以直接用中文翻译过来——响应的 body 包含 &quot;Example Domain&quot; 时为真（漏洞存在），这极大的简化了 POC 的编写过程，没有任何编程基础的人看一下文档也可以快速上手。</p>
+<figure data-type="image" tabindex="6"><img src="https://koalr.me//post-images/1578878745799.jpg" alt="" loading="lazy"></figure>
+<p>相较于其他开源 POC 框架，xray 有个优势是所有 POC 官方审核维护，这既保证了 POC 的质量，又方便共享社区智慧成果，目前已有 120+ 优质 POC，且在不断增长中。</p>
+<h2 id="一些想法">一些想法</h2>
+<p>其他内容大家参照 PPT 即可，我们不去碎碎念了，最后说一点简单的想法：</p>
+<ul>
+<li>人力是昂贵的，一款优秀的自动化工具(xray) 可以减少重复劳动</li>
+<li>漏洞检测作为漏洞利用的起点，值得花精力去研究和思考</li>
+<li>xray 作为社区新秀，希望能抛砖引玉，期待社区有衍生作品或更好的作品产生</li>
+<li>我们无暇去耗费精力做反破解相关的事情，社区运营本就不易，且用且珍惜</li>
+<li>希望有一天能在大家简历上看到熟练使用  sqlmap / burpsuite / nmap / <strong>xray</strong> 等工具</li>
+</ul>
+<p>xray 从来不是一个人项目，他的诞生是几个人一起努力了大半年的结果，而这背后是几个人数年安全经验的凝结。xray 将不断努力创造好用的检测插件，为网络安全尽一份力。</p>
+
+            </div>
+            
+            
+              <div class="next-post">
+                <div class="next">下一篇</div>
+                <a href="https://koalr.me/post/fastjson-deserialization-detection/">
+                  <h3 class="post-title">
+                    Fastjson 反序列化漏洞自动化检测
+                  </h3>
+                </a>
+              </div>
+            
+
+            
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.min.js"></script>
+<script type="application/javascript">
+
+AOS.init();
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    menuVisible: false,
+  },
+})
+
+</script>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets/highlight.min.js"></script>
+  <script>
+    hljs.initHighlightingOnLoad()
+  </script>
+
+
+
+
+
+  </body>
+</html>

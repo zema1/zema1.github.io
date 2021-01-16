@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" >
+
+<title>Koalrの沉思录</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.12.0/css/all.min.css">
+<link rel="shortcut icon" href="https://koalr.me//favicon.ico?v=1610803394914">
+<link rel="stylesheet" href="https://koalr.me//styles/main.css">
+
+
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" />
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+
+
+    <meta name="description" content="一个做安全开发的佛系少年的自留地">
+  </head>
+  <body>
+    <div id="app" class="main">
+
+      <div class="sidebar" :class="{ 'full-height': menuVisible }">
+  <div class="top-container" data-aos="fade-right">
+    <div class="top-header-container">
+      <a class="site-title-container" href="https://koalr.me/">
+        <img src="https://koalr.me//images/avatar.png?v=1610803394914" class="site-logo">
+        <h1 class="site-title">Koalrの沉思录</h1>
+      </a>
+      <div class="menu-btn" @click="menuVisible = !menuVisible">
+        <div class="line"></div>
+      </div>
+    </div>
+    <div>
+      
+        
+          <a href="/" class="site-nav">
+            首页
+          </a>
+        
+      
+        
+          <a href="/archives" class="site-nav">
+            归档
+          </a>
+        
+      
+        
+          <a href="/tags" class="site-nav">
+            标签
+          </a>
+        
+      
+        
+          <a href="/post/about" class="site-nav">
+            关于
+          </a>
+        
+      
+    </div>
+  </div>
+  <div class="bottom-container" data-aos="flip-up" data-aos-offset="0">
+    <div class="social-container">
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    </div>
+    <div class="site-description">
+      一个做安全开发的佛系少年的自留地
+    </div>
+    <div class="site-footer">
+      长路尽处自有明灯 | <a class="rss" href="https://koalr.me//atom.xml" target="_blank">RSS</a>
+    </div>
+  </div>
+</div>
+
+
+      <div class="main-container">
+        <div class="content-container" data-aos="fade-up">
+          
+            <article class="post-item">
+              <div class="left">
+                <a href="https://koalr.me/post/an-end/">
+                  <h2 class="post-title">终章</h2>
+                </a>
+                <div class="post-date">
+                  2021-01-16
+                </div>
+                <div class="post-abstract">
+                  <p>随着耳边响起一阵发动机的咆哮声，我踏上了公历年前的最后一次航行，而这次的目的地恰是年初第一次航行的始发地。兜兜转转度过了这魔幻的一年，最后以这种方式完成了一次产品经理口中经常提到的“闭环”。在 1613088000 这个时间戳不可阻挡的到来之前，我想为 2020 做个后记，记录下一个以我为中心的“人类观察报告”。</p>
+
+                </div>
+              </div>
+              
+            </article>
+          
+            <article class="post-item">
+              <div class="left">
+                <a href="https://koalr.me/post/shiro-deserialization-detection/">
+                  <h2 class="post-title">Shiro RememberMe 漏洞检测的探索之路</h2>
+                </a>
+                <div class="post-date">
+                  2020-07-31
+                </div>
+                <div class="post-abstract">
+                  <p>Shiro 是 Apache 旗下的一个用于权限管理的开源框架，提供开箱即用的身份验证、授权、密码套件和会话管理等功能。该框架在 2016 年报出了一个著名的漏洞——Shiro-550，即 RememberMe 反序列化漏洞。4年过去了，该漏洞不但没有沉没在漏洞的洪流中，反而凭借其天然过 WAF 的特性从去年开始逐渐升温，恐将在今年的 HW 演练中成为后起之秀。面对这样一个炙手可热的漏洞，这篇文章我们就来讲下，我是如何从 0 到 1 的将该漏洞的自动化检测做到极致的。</p>
+
+                </div>
+              </div>
+              
+            </article>
+          
+            <article class="post-item">
+              <div class="left">
+                <a href="https://koalr.me/post/xsschop-bypass/">
+                  <h2 class="post-title">从语法角度绕过 XSSChop</h2>
+                </a>
+                <div class="post-date">
+                  2020-07-14
+                </div>
+                <div class="post-abstract">
+                  <p>放一篇存货，文中所有绕过方法已经确认在雷池引擎修复。</p>
+
+                </div>
+              </div>
+              
+            </article>
+          
+            <article class="post-item">
+              <div class="left">
+                <a href="https://koalr.me/post/7u21-and-8u20/">
+                  <h2 class="post-title">7u21 与 8u20</h2>
+                </a>
+                <div class="post-date">
+                  2020-07-09
+                </div>
+                <div class="post-abstract">
+                  <p>做安全的有谁不喜欢这两串符号呢？</p>
+
+                </div>
+              </div>
+              
+            </article>
+          
+            <article class="post-item">
+              <div class="left">
+                <a href="https://koalr.me/post/commonscollections-deserialization/">
+                  <h2 class="post-title">CommonsCollections 系列反序列化</h2>
+                </a>
+                <div class="post-date">
+                  2020-07-07
+                </div>
+                <div class="post-abstract">
+                  <p>之前做 fastjson 的检测只能说一只脚踏入了 Java 安全，若想真正入门 Java 安全，CommonsCollections 系列反序列化利用链是一个非常好的学习资源，个人感觉看完后收获颇丰，我把比较关键的一些点都记录下来了，并把这些零散的内容整理成了一份表格放在这篇文章最后，如果不关心背后的原理，直接看最后的总结即可。文中提到的那些 K1 ~ K4 可以从这里直接下载使用：<a href="https://github.com/zema1/ysoserial">https://github.com/zema1/ysoserial</a></p>
+
+                </div>
+              </div>
+              
+            </article>
+          
+            <article class="post-item">
+              <div class="left">
+                <a href="https://koalr.me/post/a-tour-of-xray/">
+                  <h2 class="post-title">推开 xray 之门</h2>
+                </a>
+                <div class="post-date">
+                  2020-01-12
+                </div>
+                <div class="post-abstract">
+                  <p>我非常荣幸的参加了今年的阿里白帽大会，会上分享了一个议题 <strong>《漏洞挖掘进化论 - 推开 xray 之门》</strong>，这里做一个简单的记录和解读。 <a href="/files/%E6%BC%8F%E6%B4%9E%E6%8C%96%E6%8E%98%E8%BF%9B%E5%8C%96%E8%AE%BA-%E6%8E%A8%E5%BC%80xray%E4%B9%8B%E9%97%A8.pdf">下载地址</a></p>
+
+                </div>
+              </div>
+              
+            </article>
+          
+            <article class="post-item">
+              <div class="left">
+                <a href="https://koalr.me/post/fastjson-deserialization-detection/">
+                  <h2 class="post-title">Fastjson 反序列化漏洞自动化检测</h2>
+                </a>
+                <div class="post-date">
+                  2019-12-17
+                </div>
+                <div class="post-abstract">
+                  <p>fastjson 是 java 中常用的一个用来序列化/反序列化 JSON 数据的库。因其优异的性能表现，在 java web 开放中应用比较广泛。这两天花 3 分钟入门了 JAVA 安全，恰巧最近需要写一个 fastjson 的检测插件，稍微研究了一下后，感觉有一个比较不错的检测方法，在这里和大家分享下。</p>
+
+                </div>
+              </div>
+              
+            </article>
+          
+            <article class="post-item">
+              <div class="left">
+                <a href="https://koalr.me/post/passive-scan-via-http-proxy/">
+                  <h2 class="post-title">HTTP 被动代理的那些事</h2>
+                </a>
+                <div class="post-date">
+                  2019-08-16
+                </div>
+                <div class="post-abstract">
+                  <p>HTTP 代理这个名词对于安全从业人员应该都是熟知的，我们常用的抓包工具 burp 就是通过配置 HTTP 代理来实现请求的截获修改等。然而国内对这一功能的原理类文章很少，有的甚至有错误。笔者在做 xray 被动代理时研究了一下这部分内容，并整理成了这篇文章，这篇文章我们从小白的角度粗略的聊聊 HTTP 代理到底是如何工作的，在实现被动扫描功能时有哪些细节需要注意以及如何科学的处理这些细节。</p>
+
+                </div>
+              </div>
+              
+            </article>
+          
+
+          <div class="pagination-container">
+  
+  
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.min.js"></script>
+<script type="application/javascript">
+
+AOS.init();
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    menuVisible: false,
+  },
+})
+
+</script>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets/highlight.min.js"></script>
+  <script>
+    hljs.initHighlightingOnLoad()
+  </script>
+
+
+
+
+
+  </body>
+</html>

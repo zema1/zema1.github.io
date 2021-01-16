@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" >
+
+<title>从语法角度绕过 XSSChop | Koalrの沉思录</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.12.0/css/all.min.css">
+<link rel="shortcut icon" href="https://koalr.me//favicon.ico?v=1610803394914">
+<link rel="stylesheet" href="https://koalr.me//styles/main.css">
+
+
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" />
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+
+
+    <meta name="description" content="放一篇存货，文中所有绕过方法已经确认在雷池引擎修复。
+
+前几日我在写谛听溯源 JS 的利用时，发现有个目标网站用了云盾，导致 XSS 没法正常工作。然而就是那样一个简单的绕过我费了挺长时间，痛定思痛之余，我决定研究一下 XSS 的绕过问题，..." />
+    <meta name="keywords" content="" />
+  </head>
+  <body>
+    <div id="app" class="main">
+
+      <div class="sidebar" :class="{ 'full-height': menuVisible }">
+  <div class="top-container" data-aos="fade-right">
+    <div class="top-header-container">
+      <a class="site-title-container" href="https://koalr.me/">
+        <img src="https://koalr.me//images/avatar.png?v=1610803394914" class="site-logo">
+        <h1 class="site-title">Koalrの沉思录</h1>
+      </a>
+      <div class="menu-btn" @click="menuVisible = !menuVisible">
+        <div class="line"></div>
+      </div>
+    </div>
+    <div>
+      
+        
+          <a href="/" class="site-nav">
+            首页
+          </a>
+        
+      
+        
+          <a href="/archives" class="site-nav">
+            归档
+          </a>
+        
+      
+        
+          <a href="/tags" class="site-nav">
+            标签
+          </a>
+        
+      
+        
+          <a href="/post/about" class="site-nav">
+            关于
+          </a>
+        
+      
+    </div>
+  </div>
+  <div class="bottom-container" data-aos="flip-up" data-aos-offset="0">
+    <div class="social-container">
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    </div>
+    <div class="site-description">
+      一个做安全开发的佛系少年的自留地
+    </div>
+    <div class="site-footer">
+      长路尽处自有明灯 | <a class="rss" href="https://koalr.me//atom.xml" target="_blank">RSS</a>
+    </div>
+  </div>
+</div>
+
+
+      <div class="main-container">
+        <div class="content-container" data-aos="fade-up">
+          <div class="post-detail">
+            <h2 class="post-title">从语法角度绕过 XSSChop</h2>
+            <div class="post-date">2020-07-14</div>
+            
+            <div class="post-content" v-pre>
+              <p>放一篇存货，文中所有绕过方法已经确认在雷池引擎修复。</p>
+<!-- more -->
+<p>前几日我在写谛听溯源 JS 的利用时，发现有个目标网站用了云盾，导致 XSS 没法正常工作。然而就是那样一个简单的绕过我费了挺长时间，痛定思痛之余，我决定研究一下 XSS 的绕过问题，以后再遇到这类问题也能快速解决。研究目标呢，当然就选了我心中最强的 XSSChop。不过 XSS 绕过方法千千万，我这里选了一个针对语义分析的产品比较有效的方向——从 JS 语法角度绕过 XSSChop。所谓从 JS 语法角度绕过，就是说寻找一些偏僻的或是新的 JS 特性，而这些特性尚未被 XSSChop 支持或是支持的不够完善时，就会有漏报。下面是这次测试时用到的的一些环境信息。</p>
+<blockquote>
+<ul>
+<li>测试时间:  2020.3.8</li>
+<li>浏览器版本:  MacOS Chrome 79</li>
+<li>XSSChop版本: 2020-03-06. version: 0c25be48.</li>
+<li>测试目标：urlpath 中执行 <code>javascript:eval(name)</code> 为 normal 或 post body 中 <code>&lt;script&gt;eval(name)&lt;/script&gt;</code> 为 normal</li>
+</ul>
+</blockquote>
+<p>这里测试目标用的是 <code>eval(name)</code> 是有现实意义的，name 是 window 和 iframe 的一个属性，在 xss 利用时，常常可以搭配 name 使用 <code>eval(name)</code> 完成任意代码执行，<code>eval</code> 本身是一个高危函数，这个能绕过，<code>alert</code> 之类的就不足为提了。</p>
+<h2 id="编码的梦魇">编码的梦魇</h2>
+<p>JS 中常见的编码有这样几种：</p>
+<pre><code class="language-js">hello = &quot;hell\u006F&quot; // unicode 方式
+hello = &quot;hell\x6F&quot; // 16进制 hex 方式 
+hello = &quot;hell\157&quot; // 8 进制方式
+hello = &quot;hell\o&quot; // '无意义' 的转义
+</code></pre>
+<p>其中第一种 unicode 的方式是比较特殊的，因为这种方式可以在非字符串中直接使用，例如可以直接作为函数名调用：</p>
+<pre><code class="language-js">\u0061\u006c\u0065\u0072\u0074()  // alert()
+</code></pre>
+<p>上面这些方式雷池都支持的很完善，不过在 ES6 中定义了一种新的 unicode 编码方式:</p>
+<pre><code class="language-js">\u{61}\u{6c}\u{65}\u{72}\u{74}() // alert()
+'\u{61}' === 'a'  // true
+</code></pre>
+<p>这种编码可以在两个周前完全绕过 XSSChop 的检查，跟吴雷师傅说了下，据说有支持这种方式但打分低了导致 Normal。今天我又看了一下，发现 body 中的确实变为 Low 了<br>
+<img src="https://koalr.me//post-images/1583658436548.jpg" alt="" loading="lazy"></p>
+<p>但是 urlpath 中的方式依然是 normal，可能需要再细化一下算法，而且修复的时候要注意下 <code>javascript://</code> 伪协议 中可以搭配其他编码诸如 html 实体编码、url 编码等。</p>
+<figure data-type="image" tabindex="1"><img src="https://koalr.me//post-images/1583658557958.jpg" alt="" loading="lazy"></figure>
+<h2 id="可变的常量">“可变”的常量</h2>
+<p>为了更方便的阅读大的数字，很多语言在实现时都支持名为 <code>Numeric Separators</code> 的特性，简单来讲就是支持在数字常量中插入一些 <code>_</code> 来手动分割数字，比较常用的是千位分隔符:</p>
+<pre><code>1_000_000
+</code></pre>
+<p>这样就可以一眼知道这是一百万。2020 年 5 月过后，很多浏览器都支持了这一特性，具体可以看 <a href="https://caniuse.com/#feat=mdn-javascript_grammar_numeric_separators">https://caniuse.com/#feat=mdn-javascript_grammar_numeric_separators</a> ，如果解析器不支持这一方式变会产生绕过:</p>
+<figure data-type="image" tabindex="2"><img src="https://koalr.me//post-images/1595840370213.jpg" alt="" loading="lazy"></figure>
+<p>稍加调整便可以执行 <code>eval(name)</code> 命令:</p>
+<figure data-type="image" tabindex="3"><img src="https://koalr.me//post-images/1595840770353.jpg" alt="" loading="lazy"></figure>
+<p>值得注意的是，下面这几种方式都可以表示数字 <code>123</code></p>
+<pre><code class="language-js">a = 1234
+a = 1_2_3_4
+a = 12_34
+a = 0b1_0_0_1_1_0_1_0_0_1_0 // 2进制
+a = 0o2_3_2_2 // 8 进制
+a = 0x4d_2
+</code></pre>
+<h2 id="千面狐-eval">千面狐 Eval</h2>
+<p>在 JS 中将字符串视为代码执行的常见方法有如下几种:</p>
+<pre><code class="language-js">eval('alert()')
+Function('alert()')
+setTImeout('alert()')
+setInterval('alert()')
+Map.constructor('alert()')();
+</code></pre>
+<p>其中最后一种比较有意思，实际上不仅 Map，大部分的内置 Class 都支持 string 参数的 construstor 方法，搭配 ES6 中的 tagged template 语法，可以写出一些比较魔幻的写法:</p>
+<pre><code class="language-js">Set.constructor`alert()```
+a = `al${'er'}t()`; Proxy.constructor(a)``;
+</code></pre>
+<p>然而，只要出现了 constructor 雷池都是 high，我猜分析的时候只要发现 MemberExpression 的右值为 <code>constructor</code>，就会是高危。但 js 中获取属性还有其他方式，比如:</p>
+<figure data-type="image" tabindex="4"><img src="https://koalr.me//post-images/1583660720354.jpg" alt="" loading="lazy"></figure>
+<p>刚才说的是常见的几种，还有一种不太常见但很好用的方式: Array Iterator。即借助迭代器的callback来执行，大致有下面的几种写法:</p>
+<pre><code class="language-js">['1'].map(alert);
+['2'].find(alert);
+['3'].flatMap(alert);
+['4'].every(alert);
+['5'].filter(alert);
+['6'].findIndex(alert);
+['7'].forEach(alert);
+['8'].reduce(alert);
+['9'].reduceRight(alert);
+['10'].some(alert);
+['0','11'].sort(alert);
+</code></pre>
+<p>把上面这一堆复制到 chrome console 中执行，你将收获 11 个弹窗（：</p>
+<p>不过经过我人肉测试发现，这些 case 雷池都基本考虑到了，但如果 Array 中用的是 name，结果就是 normal 了，猜测也是打分问题。</p>
+<figure data-type="image" tabindex="5"><img src="https://koalr.me//post-images/1583662175691.jpg" alt="" loading="lazy"></figure>
+<h2 id="进击的-esx">进击的 ES(X)</h2>
+<p>ES 每年都有新的标准诞生，到现在已经有 ES10 了，对于语义分析的 XSSChop 来说，这是一个巨大的挑战，因为新标准中往往有一些和之前不一样的语法，如果解析引擎没有与时俱进的支持这些语法，就会直接在产生 AST 的过程中报错而结束整个分析流程从而被绕过。这里我从 ES8, ES9, ES10 中分别找了一个可以绕过的特性:</p>
+<h3 id="asyncawait-es8">Async/Await (ES8)</h3>
+<p>写过 Python asyncio 的同学应该对这个很熟悉，JS 的协程和 Python 的非常像，但细节上稍有差异，比如 Python 中这个写法会报错:</p>
+<pre><code class="language-python">impor time
+await time.time()
+</code></pre>
+<p>因为 await 后不是一个 &quot;awaitable&quot; 的对象，相比之下 JS 的写法要宽松很多，下面的写法在 JS 中是完全正常的：</p>
+<pre><code class="language-js">await alert();  // 实际上发生了类似 await Promise.resolve(alert())； 的转换
+</code></pre>
+<p>雷池因为不认识该关键字可以直接绕过:</p>
+<figure data-type="image" tabindex="6"><img src="https://koalr.me//post-images/1584075811661.jpg" alt="" loading="lazy"></figure>
+<h3 id="对象-rest-解构-es9">对象 REST 解构 (ES9）</h3>
+<p>ES6 中引入了 REST 参数和拓展运算符，也称为变量解构赋值，可以用下面的例子简单回顾下:</p>
+<pre><code class="language-js">var [a, b, c] = [1, 2, 3];  // a=1;b=2;c=3
+let [head, ...tail] = [1, 2, 3, 4]; // head=1; tail = [2,34]
+
+params(1,2,3,4,5)
+function params(p1, p2, ...p3) {
+// p1 = 1
+// p2 = 2
+// p3 = [3,4,5]
+}
+</code></pre>
+<p>但 ES6 中的拓展运算符（...) 仅能用于数组，ES9 将这一用法进行了拓展，使得 Object 也可以用该运算符了，用法大致是这样:</p>
+<pre><code class="language-js">let obj = {a:1, b:2, c:3};
+let {a, ...x} = obj;  // a=1; x = {b:2, c:3}
+</code></pre>
+<p>类似的，也可以利用该语法使雷池产生错误而绕过:<br>
+<img src="https://koalr.me//post-images/1583667850993.jpg" alt="" loading="lazy"></p>
+<h3 id="省略的-catch-绑定-es10">省略的 catch 绑定 (ES10)</h3>
+<p>在 ES10 之前，使用 catch 时必须为 catch 子句绑定异常变量，无论是否用到该变量，ES10 允许省略该变量，即:</p>
+<pre><code class="language-js">// 之前
+try {} catch(e) {} 
+// ES10
+try {} catch {}
+</code></pre>
+<p>雷池的检测结果：</p>
+<figure data-type="image" tabindex="7"><img src="https://koalr.me//post-images/1583668745242.jpg" alt="" loading="lazy"></figure>
+<h3 id="staging-chrome-80-已经支持">staging.. (Chrome 80 已经支持)</h3>
+<pre><code>&lt;script&gt;a={};a?.a??alert()&lt;/script&gt;
+</code></pre>
+<figure data-type="image" tabindex="8"><img src="https://koalr.me//post-images/1587089208823.jpg" alt="" loading="lazy"></figure>
+<h2 id="一点思考">一点思考</h2>
+<p>不得不说，XSSChop 整体还是很优秀的，在低误报的同时能覆盖大量的 case，在处理变形和混淆上也有着不错的表现，和其他家只要有 alert 就高危相比要好很多。但我感觉有两方面还需要调整下：</p>
+<ol>
+<li>打分机制还需要不断的完善，人肉的测试去寻找漏报是一条比较有效的途径。</li>
+<li>xsschop 需要不断的跟进新的 ES 标准，实际上每次新增的特性并不多，xsschop 需要重点关注下新增的语法和新增的函数，别让词法分析成为语义分析的拦路虎。</li>
+</ol>
+<p>类比考虑一下，xsschop 有实现标准的问题，那么 sqlchop 会不会也有类似的问题呢？这个有时间再研究吧。</p>
+
+            </div>
+            
+            
+              <div class="next-post">
+                <div class="next">下一篇</div>
+                <a href="https://koalr.me/post/7u21-and-8u20/">
+                  <h3 class="post-title">
+                    7u21 与 8u20
+                  </h3>
+                </a>
+              </div>
+            
+
+            
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.min.js"></script>
+<script type="application/javascript">
+
+AOS.init();
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    menuVisible: false,
+  },
+})
+
+</script>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets/highlight.min.js"></script>
+  <script>
+    hljs.initHighlightingOnLoad()
+  </script>
+
+
+
+
+
+  </body>
+</html>
