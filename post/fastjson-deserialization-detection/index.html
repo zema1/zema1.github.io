@@ -8,8 +8,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.12.0/css/all.min.css">
-<link rel="shortcut icon" href="https://koalr.me//favicon.ico?v=1610811954944">
-<link rel="stylesheet" href="https://koalr.me//styles/main.css">
+<link rel="shortcut icon" href="https://koalr.me/favicon.ico?v=1622119518408">
+<link rel="stylesheet" href="https://koalr.me/styles/main.css">
 
 
 
@@ -29,8 +29,8 @@
       <div class="sidebar" :class="{ 'full-height': menuVisible }">
   <div class="top-container" data-aos="fade-right">
     <div class="top-header-container">
-      <a class="site-title-container" href="https://koalr.me/">
-        <img src="https://koalr.me//images/avatar.png?v=1610811954944" class="site-logo">
+      <a class="site-title-container" href="https://koalr.me">
+        <img src="https://koalr.me/images/avatar.png?v=1622119518408" class="site-logo">
         <h1 class="site-title">Koalrの沉思录</h1>
       </a>
       <div class="menu-btn" @click="menuVisible = !menuVisible">
@@ -85,7 +85,7 @@
       一个做安全开发的佛系少年的自留地
     </div>
     <div class="site-footer">
-      长路尽处自有明灯 | <a class="rss" href="https://koalr.me//atom.xml" target="_blank">RSS</a>
+      长路尽处自有明灯 | <a class="rss" href="https://koalr.me/atom.xml" target="_blank">RSS</a>
     </div>
   </div>
 </div>
@@ -252,7 +252,7 @@ Call SerializationData
 </ol>
 <p>这里的 SerializationData 其实就是 String 的序列化数据，这里面必然包含这我们想要的那个 path, 我在实现时并没有按照 java 序列化数据的格式去乖乖读取，而是用了一个简单的办法，我发现 String 的序列化数据的真正内容都在最后面，那么我其实从后往前读取就可以找到想要的 path，具体方法可以从后往前读固定的长度，也可以给path 设置一个标记符，读到就结束，我用的是后者。</p>
 <p>至此，我们把上面讨论的内容用代码串起来就可以做到 fastjson 的高效自动化检测了，该插件现已加入 xray 高级版，欢迎体验。我取了4个版本相对关键的 fastjson 版本验证了一下，效果图如下:</p>
-<figure data-type="image" tabindex="1"><img src="https://koalr.me//post-images/1577102105416.svg" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="1"><img src="https://koalr.me/post-images/1577102105416.svg" alt="" loading="lazy"></figure>
 <h2 id="一点想法">一点想法</h2>
 <p>上面的实现还有个我觉得不够完美的点，由于我自行实现的 RMI 只实现了握手部分，取得 path 后就关掉连接了，这其实会导致服务端有一个异常信息。其实有时间的话完全可以把剩下的协议部分实现以下，返回一个最简单的结果就可以，这个留给大家去发挥吧。</p>
 <p>在研究这个漏洞时，发现大家的研究点都集中在漏洞利用上，然而发现漏洞其实是利用漏洞的起点，而如何高效、自动化的检测漏洞也是非常值得我们去思考和研究的。由于我之前没接触过 Java，很多都是花三分钟现学的，虽然文中结论我大都自己调试过，但精力有限，如有错误，欢迎与我联系改正。</p>

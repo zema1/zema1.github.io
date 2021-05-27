@@ -8,8 +8,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.12.0/css/all.min.css">
-<link rel="shortcut icon" href="https://koalr.me//favicon.ico?v=1610811954944">
-<link rel="stylesheet" href="https://koalr.me//styles/main.css">
+<link rel="shortcut icon" href="https://koalr.me/favicon.ico?v=1622119518408">
+<link rel="stylesheet" href="https://koalr.me/styles/main.css">
 
 
 
@@ -29,8 +29,8 @@
       <div class="sidebar" :class="{ 'full-height': menuVisible }">
   <div class="top-container" data-aos="fade-right">
     <div class="top-header-container">
-      <a class="site-title-container" href="https://koalr.me/">
-        <img src="https://koalr.me//images/avatar.png?v=1610811954944" class="site-logo">
+      <a class="site-title-container" href="https://koalr.me">
+        <img src="https://koalr.me/images/avatar.png?v=1622119518408" class="site-logo">
         <h1 class="site-title">Koalrの沉思录</h1>
       </a>
       <div class="menu-btn" @click="menuVisible = !menuVisible">
@@ -85,7 +85,7 @@
       一个做安全开发的佛系少年的自留地
     </div>
     <div class="site-footer">
-      长路尽处自有明灯 | <a class="rss" href="https://koalr.me//atom.xml" target="_blank">RSS</a>
+      长路尽处自有明灯 | <a class="rss" href="https://koalr.me/atom.xml" target="_blank">RSS</a>
     </div>
   </div>
 </div>
@@ -102,11 +102,11 @@
 <!-- more -->
 <h2 id="漏洞成因">漏洞成因</h2>
 <p>网上相关分析已经很多，使用了 Shiro 框架的 Web 应用，登录成功后的用户信息会加密存储在 Cookie 中，后续可以从 Cookie 中读取用户认证信息，从而达到“记住我”的目的，简要流程如下。</p>
-<figure data-type="image" tabindex="1"><img src="https://koalr.me//post-images/1596707319145.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="1"><img src="https://koalr.me/post-images/1596707319145.png" alt="" loading="lazy"></figure>
 <p>在 Cookie 读取过程中有用 AES 对 Cookie 值解密的过程，对于 AES 这类对称加密算法，一旦秘钥泄露加密便形同虚设。若秘钥可控同时 Cookie 值是由攻击者构造的恶意 Payload，就可以将流程走通，触发危险的 Java 反序列化。在 Shiro 1.2.4 及之前的版本，Shiro 秘钥是硬编码的一个值 <code>kPH+bIxk5D2deZiIxcaaaA==</code> ，这便是 Shiro-550 的漏洞成因。但这个漏洞不只存在于 1.2.4 版本，后续版本的读取流程没有什么改动，这就意味着只要秘钥泄露，依然存在高危风险。有趣的是，国内不少程序员习惯性的 copy/paste，一些 Github 示例代码被直接复制到了项目中，这些示例中设置秘钥的代码也可能被一并带到项目中，这就给了安全人员可乘之机，后来出现的 Shiro Top 100 Key 便是基于此原理收集的，这大概也是该漏洞经久不衰的一个侧面因素吧。</p>
 <h2 id="反序列化利用链提纯">反序列化利用链提纯</h2>
 <p>Shiro 作为 Java 反序列化漏洞，想要完成漏洞利用必然少不了利用链的讨论。如果你之前有尝试复现过这个漏洞，大概率用过 <code>CommonsCollections4</code> 或 <code>CommonsBeanutils</code> 两条利用链，比如 vulhub 中该漏洞的靶站就使用了后者作为 gadget。作为一个初入 Java 安全的小白，我当时很疑惑 CommonsCollections 系列 gadget 到底有何区别，为何这里只能用上述的两条链，上面的利用链对目标环境的适用程度又是如何？这些问题不搞清楚，漏洞检测就无从谈起。作为知识储备，我花三分钟研究了一下常见的 Java 反序列化利用链，发现 ysoserial 中 Commons 相关利用链都是如下模子出来的:</p>
-<figure data-type="image" tabindex="2"><img src="https://koalr.me//post-images/1596707344225.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="2"><img src="https://koalr.me/post-images/1596707344225.png" alt="" loading="lazy"></figure>
 <p>不同的利用链从不同角度给了我们反序列化的一些思路，熟悉这个规律后，我们完全可以自己组合出一些另外的利用链。不过利用链不求多但求精，少一条无用的利用链就意味着可以减少一次漏洞探测的尝试。于是我将原有的 CommonsCollections1~7 进行了浓缩提纯，变成了如下新的 4 条利用链:</p>
 <ul>
 <li>CommonsCollectionsK1 (commons-Collections &lt;= 3.2.1 &amp;&amp; allowTemplates)</li>
@@ -152,16 +152,16 @@ public static Class forName(String fqcn) throws UnknownClassException {
   	for(processors) -&gt; req -&gt; response
 </code></pre>
 <p>一些细节的坑点就不展开说了，总之就是各种反射各种 try/catch，我尽了最大的努力来提高其对各种 Tomcat 环境的兼容性，文章最后会将这个成果分享给大家。有了这个比较好用的回显 payload，搭配 K1/K2 来触发反序列化流程，就打造成了 xray 高级版/商业版中 Shiro 反序列化回显检测的核心逻辑，回显效果如下:</p>
-<figure data-type="image" tabindex="3"><img src="https://koalr.me//post-images/1596707379603.jpeg" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="3"><img src="https://koalr.me/post-images/1596707379603.jpeg" alt="" loading="lazy"></figure>
 <h2 id="更上一层楼">更上一层楼</h2>
 <p>使用 xray 扫到过 xss 的同学应该都有所体会，xray 扫到的 xss 漏洞不一定可以直接弹框，但相关参数一定存在可控的代码注入，经常会遇到网站存在 waf 但 xray 依然可以识别出 xss 的情况。纵观整个 Shiro 反序列化的流程，步步都是在针尖上跳舞，一步出错便前功尽弃。倘若目标站点部署了 RASP 等主机防护手段，很有可能导致反序列化中断而与 RCE 擦肩而过，有没有什么办法能够像 xss 一样大幅的提高其检测能力的下限呢？和 l1nk3r 师傅交流了一下，他提到一种检测 Shiro Key 的方法很不错，据说原理来自 <code>shiro_tool.jar</code> ，详情可以参考这篇文章 <a href="https://mp.weixin.qq.com/s/do88_4Td1CSeKLmFqhGCuQ">一种另类的 shiro 检测方式</a> ，我这里简单复述一下结论。</p>
 <blockquote>
 <p>使用一个空的 <code>SimplePrincipalCollection</code> 作为 payload，序列化后使用待检测的秘钥进行加密并发送，秘钥正确和错误的响应表现是不一样的，可以使用这个方法来可靠的枚举 Shiro 当前使用的秘钥。</p>
 </blockquote>
 <p>Key 错误时</p>
-<figure data-type="image" tabindex="4"><img src="https://koalr.me//post-images/1596707399956.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="4"><img src="https://koalr.me/post-images/1596707399956.png" alt="" loading="lazy"></figure>
 <p>Key 正确时</p>
-<figure data-type="image" tabindex="5"><img src="https://koalr.me//post-images/1596707421786.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="5"><img src="https://koalr.me/post-images/1596707421786.png" alt="" loading="lazy"></figure>
 <p>借助这种方法，我们就可以将 Shiro 的检测拆为两步</p>
 <ol>
 <li>探测 Shiro Key，如果探测成功，则报出秘钥可被枚举的漏洞；如果探测失败直接结束逻辑</li>

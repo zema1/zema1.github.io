@@ -8,8 +8,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.12.0/css/all.min.css">
-<link rel="shortcut icon" href="https://koalr.me//favicon.ico?v=1610811954944">
-<link rel="stylesheet" href="https://koalr.me//styles/main.css">
+<link rel="shortcut icon" href="https://koalr.me/favicon.ico?v=1622119518408">
+<link rel="stylesheet" href="https://koalr.me/styles/main.css">
 
 
 
@@ -29,8 +29,8 @@
       <div class="sidebar" :class="{ 'full-height': menuVisible }">
   <div class="top-container" data-aos="fade-right">
     <div class="top-header-container">
-      <a class="site-title-container" href="https://koalr.me/">
-        <img src="https://koalr.me//images/avatar.png?v=1610811954944" class="site-logo">
+      <a class="site-title-container" href="https://koalr.me">
+        <img src="https://koalr.me/images/avatar.png?v=1622119518408" class="site-logo">
         <h1 class="site-title">Koalrの沉思录</h1>
       </a>
       <div class="menu-btn" @click="menuVisible = !menuVisible">
@@ -85,7 +85,7 @@
       一个做安全开发的佛系少年的自留地
     </div>
     <div class="site-footer">
-      长路尽处自有明灯 | <a class="rss" href="https://koalr.me//atom.xml" target="_blank">RSS</a>
+      长路尽处自有明灯 | <a class="rss" href="https://koalr.me/atom.xml" target="_blank">RSS</a>
     </div>
   </div>
 </div>
@@ -112,7 +112,7 @@
 <h2 id="知识储备">知识储备</h2>
 <p>我们在本地做开发时，有时会需要启动一个 HTTPS 的服务，通常使用 OpenSSL 自行签发证书并在系统中信任该证书，然后就可以正常使用这个 TLS 服务了。如果没有信任，浏览器就会提示证书不信任而无法访问，简言之，我们需要手动信任自行签发的证书才可以正常访问配置了该证书的网站。那么问题来了，为什么平日访问的那些网站都不需要信任证书呢?<br>
 打开 <code>baidu.com</code> 查看其证书发现这里其实是一个证书链:<br>
-<img src="https://koalr.me//post-images/1566046607867.png" alt="" loading="lazy"><br>
+<img src="https://koalr.me/post-images/1566046607867.png" alt="" loading="lazy"><br>
 最顶层的 <code>Global Sign RootCA</code> 是一个根证书，第二个是一个中间证书，最后一个才是 baidu 的颁发证书，这三种证书的效力是:</p>
 <pre><code>RootCA &gt;  Intermediates CA &gt; End-User Cert
 </code></pre>
@@ -140,7 +140,7 @@ socks5://127.0.0.1:7777
 <h2 id="代理中的-mitm">代理中的 MITM</h2>
 <p>HTTP 代理的协议基于 HTTP，因此 HTTP 代理本身就是一个 HTTP 的服务，<br>
 而其工作原理本质上就是中间人（MITM) ，即读取当前客户端的 HTTP 请求，从代理发送出去并获得响应，然后将响应返回给客户端。其过程类似下面的流程:<br>
-<img src="https://koalr.me//post-images/1565961613163.png" alt="" loading="lazy"><br>
+<img src="https://koalr.me/post-images/1565961613163.png" alt="" loading="lazy"><br>
 为了更直观的感受下，可以用 nc 监听 <code>127.0.0.1:7777</code> 然后使用 <code>http_proxy=http://127.0.0.1:7777 curl http://example.com</code>，会发现 nc 的数据包为:</p>
 <pre><code class="language-http">GET http://example.com/ HTTP/1.1
 Host: example.com
@@ -214,7 +214,7 @@ Proxy-Connection: Keep-Alive
 
 </code></pre>
 <p>这是 HTTP 代理的另一种形式，称为隧道代理。隧道代理的过程如下:<br>
-<img src="https://koalr.me//post-images/1565961830872.png" alt="" loading="lazy"></p>
+<img src="https://koalr.me/post-images/1565961830872.png" alt="" loading="lazy"></p>
 <p>隧道代理的出现是为了能在 HTTP 协议基础上传输非 HTTP 的内容。如果你用过 websocket，一定对 <code>Connection: Upgrade</code> 这个头不陌生。这个头是用来告诉 server，客户端想把当前的 HTTP 的连接转为 Websocket 协议通信的连接。类似的，这里的 <code>CONNECT</code>是一种协议转换的请求，但这种转换更像是一种 <code>Degrade</code>，因为握手完成后，这个链接将退化为原始的 Socket Connection，可以在其中传输任意数据。用文字描述下整个过程如下:</p>
 <ol>
 <li>客户端想通过代理访问<code>https://baidu.com</code>，向代理发送 <code>Connect</code> 请求。</li>
@@ -238,7 +238,7 @@ handleReq(conn, req)
 <h2 id="代理的认证">代理的认证</h2>
 <p>一个公网的代理如果没有加认证是比较危险的，因为代理本身就相当于开放了某个网络的使用权限，而且由于隧道模式的存在，代理的支持的协议理论上拓宽到了任何基于 TCP 的协议，如果可以和传统的 redis 未授权，SSRF DNS rebinding 等结合一下就是一个简单的 CTF 题。所以给代理加上鉴权是很有必要的。</p>
 <p>代理的认证和正常的 HTTP Basic Auth 很像，只是相关头加了一个 <code>Proxy-</code> 的前缀，可以参考 《HTTP 权威指南》中的一个图学习一下:</p>
-<figure data-type="image" tabindex="1"><img src="https://koalr.me//post-images/1566100980334.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="1"><img src="https://koalr.me/post-images/1566100980334.png" alt="" loading="lazy"></figure>
 <h2 id="点对点的修正">点对点的修正</h2>
 <p>根据 <a href="https://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-14#section-7.1.3.1">RFC</a>，HTTP 中的下列头被称为单跳头(Hop-By-Hop header)，这些 Header 应该只作用于单个 TCP 连接的两端，HTTP 代理在请求中如果遇到了，应当删掉这些头。</p>
 <pre><code>&quot;Proxy-Authenticate&quot;,

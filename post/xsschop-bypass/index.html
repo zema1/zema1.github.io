@@ -8,8 +8,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.12.0/css/all.min.css">
-<link rel="shortcut icon" href="https://koalr.me//favicon.ico?v=1610811954944">
-<link rel="stylesheet" href="https://koalr.me//styles/main.css">
+<link rel="shortcut icon" href="https://koalr.me/favicon.ico?v=1622119518408">
+<link rel="stylesheet" href="https://koalr.me/styles/main.css">
 
 
 
@@ -31,8 +31,8 @@
       <div class="sidebar" :class="{ 'full-height': menuVisible }">
   <div class="top-container" data-aos="fade-right">
     <div class="top-header-container">
-      <a class="site-title-container" href="https://koalr.me/">
-        <img src="https://koalr.me//images/avatar.png?v=1610811954944" class="site-logo">
+      <a class="site-title-container" href="https://koalr.me">
+        <img src="https://koalr.me/images/avatar.png?v=1622119518408" class="site-logo">
         <h1 class="site-title">Koalrの沉思录</h1>
       </a>
       <div class="menu-btn" @click="menuVisible = !menuVisible">
@@ -87,7 +87,7 @@
       一个做安全开发的佛系少年的自留地
     </div>
     <div class="site-footer">
-      长路尽处自有明灯 | <a class="rss" href="https://koalr.me//atom.xml" target="_blank">RSS</a>
+      长路尽处自有明灯 | <a class="rss" href="https://koalr.me/atom.xml" target="_blank">RSS</a>
     </div>
   </div>
 </div>
@@ -127,17 +127,17 @@ hello = &quot;hell\o&quot; // '无意义' 的转义
 '\u{61}' === 'a'  // true
 </code></pre>
 <p>这种编码可以在两个周前完全绕过 XSSChop 的检查，跟吴雷师傅说了下，据说有支持这种方式但打分低了导致 Normal。今天我又看了一下，发现 body 中的确实变为 Low 了<br>
-<img src="https://koalr.me//post-images/1583658436548.jpg" alt="" loading="lazy"></p>
+<img src="https://koalr.me/post-images/1583658436548.jpg" alt="" loading="lazy"></p>
 <p>但是 urlpath 中的方式依然是 normal，可能需要再细化一下算法，而且修复的时候要注意下 <code>javascript://</code> 伪协议 中可以搭配其他编码诸如 html 实体编码、url 编码等。</p>
-<figure data-type="image" tabindex="1"><img src="https://koalr.me//post-images/1583658557958.jpg" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="1"><img src="https://koalr.me/post-images/1583658557958.jpg" alt="" loading="lazy"></figure>
 <h2 id="可变的常量">“可变”的常量</h2>
 <p>为了更方便的阅读大的数字，很多语言在实现时都支持名为 <code>Numeric Separators</code> 的特性，简单来讲就是支持在数字常量中插入一些 <code>_</code> 来手动分割数字，比较常用的是千位分隔符:</p>
 <pre><code>1_000_000
 </code></pre>
 <p>这样就可以一眼知道这是一百万。2020 年 5 月过后，很多浏览器都支持了这一特性，具体可以看 <a href="https://caniuse.com/#feat=mdn-javascript_grammar_numeric_separators">https://caniuse.com/#feat=mdn-javascript_grammar_numeric_separators</a> ，如果解析器不支持这一方式变会产生绕过:</p>
-<figure data-type="image" tabindex="2"><img src="https://koalr.me//post-images/1595840370213.jpg" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="2"><img src="https://koalr.me/post-images/1595840370213.jpg" alt="" loading="lazy"></figure>
 <p>稍加调整便可以执行 <code>eval(name)</code> 命令:</p>
-<figure data-type="image" tabindex="3"><img src="https://koalr.me//post-images/1595840770353.jpg" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="3"><img src="https://koalr.me/post-images/1595840770353.jpg" alt="" loading="lazy"></figure>
 <p>值得注意的是，下面这几种方式都可以表示数字 <code>123</code></p>
 <pre><code class="language-js">a = 1234
 a = 1_2_3_4
@@ -159,7 +159,7 @@ Map.constructor('alert()')();
 a = `al${'er'}t()`; Proxy.constructor(a)``;
 </code></pre>
 <p>然而，只要出现了 constructor 雷池都是 high，我猜分析的时候只要发现 MemberExpression 的右值为 <code>constructor</code>，就会是高危。但 js 中获取属性还有其他方式，比如:</p>
-<figure data-type="image" tabindex="4"><img src="https://koalr.me//post-images/1583660720354.jpg" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="4"><img src="https://koalr.me/post-images/1583660720354.jpg" alt="" loading="lazy"></figure>
 <p>刚才说的是常见的几种，还有一种不太常见但很好用的方式: Array Iterator。即借助迭代器的callback来执行，大致有下面的几种写法:</p>
 <pre><code class="language-js">['1'].map(alert);
 ['2'].find(alert);
@@ -175,7 +175,7 @@ a = `al${'er'}t()`; Proxy.constructor(a)``;
 </code></pre>
 <p>把上面这一堆复制到 chrome console 中执行，你将收获 11 个弹窗（：</p>
 <p>不过经过我人肉测试发现，这些 case 雷池都基本考虑到了，但如果 Array 中用的是 name，结果就是 normal 了，猜测也是打分问题。</p>
-<figure data-type="image" tabindex="5"><img src="https://koalr.me//post-images/1583662175691.jpg" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="5"><img src="https://koalr.me/post-images/1583662175691.jpg" alt="" loading="lazy"></figure>
 <h2 id="进击的-esx">进击的 ES(X)</h2>
 <p>ES 每年都有新的标准诞生，到现在已经有 ES10 了，对于语义分析的 XSSChop 来说，这是一个巨大的挑战，因为新标准中往往有一些和之前不一样的语法，如果解析引擎没有与时俱进的支持这些语法，就会直接在产生 AST 的过程中报错而结束整个分析流程从而被绕过。这里我从 ES8, ES9, ES10 中分别找了一个可以绕过的特性:</p>
 <h3 id="asyncawait-es8">Async/Await (ES8)</h3>
@@ -187,7 +187,7 @@ await time.time()
 <pre><code class="language-js">await alert();  // 实际上发生了类似 await Promise.resolve(alert())； 的转换
 </code></pre>
 <p>雷池因为不认识该关键字可以直接绕过:</p>
-<figure data-type="image" tabindex="6"><img src="https://koalr.me//post-images/1584075811661.jpg" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="6"><img src="https://koalr.me/post-images/1584075811661.jpg" alt="" loading="lazy"></figure>
 <h3 id="对象-rest-解构-es9">对象 REST 解构 (ES9）</h3>
 <p>ES6 中引入了 REST 参数和拓展运算符，也称为变量解构赋值，可以用下面的例子简单回顾下:</p>
 <pre><code class="language-js">var [a, b, c] = [1, 2, 3];  // a=1;b=2;c=3
@@ -205,7 +205,7 @@ function params(p1, p2, ...p3) {
 let {a, ...x} = obj;  // a=1; x = {b:2, c:3}
 </code></pre>
 <p>类似的，也可以利用该语法使雷池产生错误而绕过:<br>
-<img src="https://koalr.me//post-images/1583667850993.jpg" alt="" loading="lazy"></p>
+<img src="https://koalr.me/post-images/1583667850993.jpg" alt="" loading="lazy"></p>
 <h3 id="省略的-catch-绑定-es10">省略的 catch 绑定 (ES10)</h3>
 <p>在 ES10 之前，使用 catch 时必须为 catch 子句绑定异常变量，无论是否用到该变量，ES10 允许省略该变量，即:</p>
 <pre><code class="language-js">// 之前
@@ -214,11 +214,11 @@ try {} catch(e) {}
 try {} catch {}
 </code></pre>
 <p>雷池的检测结果：</p>
-<figure data-type="image" tabindex="7"><img src="https://koalr.me//post-images/1583668745242.jpg" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="7"><img src="https://koalr.me/post-images/1583668745242.jpg" alt="" loading="lazy"></figure>
 <h3 id="staging-chrome-80-已经支持">staging.. (Chrome 80 已经支持)</h3>
 <pre><code>&lt;script&gt;a={};a?.a??alert()&lt;/script&gt;
 </code></pre>
-<figure data-type="image" tabindex="8"><img src="https://koalr.me//post-images/1587089208823.jpg" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="8"><img src="https://koalr.me/post-images/1587089208823.jpg" alt="" loading="lazy"></figure>
 <h2 id="一点思考">一点思考</h2>
 <p>不得不说，XSSChop 整体还是很优秀的，在低误报的同时能覆盖大量的 case，在处理变形和混淆上也有着不错的表现，和其他家只要有 alert 就高危相比要好很多。但我感觉有两方面还需要调整下：</p>
 <ol>
